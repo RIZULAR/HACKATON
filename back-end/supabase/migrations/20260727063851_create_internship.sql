@@ -119,3 +119,32 @@ create table public.internship_code_counter (
     last_number integer default 0
 
 );
+
+-- =====================================================
+-- TRIGGER
+-- =====================================================
+
+create trigger trg_internship_updated_at
+before update
+on public.internship_applications
+for each row
+execute function public.set_updated_at();
+
+-- =====================================================
+-- INDEX
+-- =====================================================
+
+create index idx_internship_student
+on public.internship_applications(student_id);
+
+create index idx_internship_status
+on public.internship_applications(status);
+
+create index idx_internship_assigned_dpl
+on public.internship_applications(assigned_dpl_id);
+
+create index idx_internship_partner
+on public.internship_applications(partner_name);
+
+create index idx_status_history_application
+on public.internship_status_history(internship_application_id);
