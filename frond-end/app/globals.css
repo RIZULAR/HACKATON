@@ -1,26 +1,48 @@
 @import "tailwindcss";
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    /* ============================================================
+     DESIGN TOKENS — Magangin
+     ------------------------------------------------------------
+     Ink      #14162B   teks utama, sangat gelap kebiruan
+     Bg       #F6F7FB   latar utama, off-white keunguan lembut
+     Primary  #3D3BFF   biru-violet, warna merek utama
+     Amber    #FFB020   aksen CTA & highlight
+     Mint     #17C990   aksen sekunder (progres/berhasil)
+     Line     #E4E6F1   border/pemisah tipis
+     ============================================================ */
+    --background: #F6F7FB;
+    --foreground: #14162B;
+    --color-ink: #14162B;
+    --color-bg: #F6F7FB;
+    --color-primary: #3D3BFF;
+    --color-amber: #FFB020;
+    --color-mint: #17C990;
+    --color-line: #E4E6F1;
+    --font-display: "Sora", var(--font-geist-sans), Arial, Helvetica, sans-serif;
+    --font-body: "Inter", var(--font-geist-sans), Arial, Helvetica, sans-serif;
+    --font-mono: "IBM Plex Mono", var(--font-geist-mono), "Courier New", monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-ink: var(--color-ink);
+    --color-bg: var(--color-bg);
+    --color-primary: var(--color-primary);
+    --color-amber: var(--color-amber);
+    --color-mint: var(--color-mint);
+    --color-line: var(--color-line);
+    --font-sans: var(--font-body);
+    --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
+/* Desain Magangin dibuat khusus untuk tema terang,
+   jadi auto dark-mode dari OS sengaja dinonaktifkan
+   supaya warna brand (Bg/Ink/Primary) tidak bentrok. */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-body);
 }
