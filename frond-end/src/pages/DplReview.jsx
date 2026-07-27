@@ -251,94 +251,59 @@ function DplReview() {
       />
     )
   }
-
   return (
     <main className="min-h-screen bg-slate-50 font-sans antialiased">
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/20">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white">
               <FileIcon className="h-5 w-5" />
             </span>
 
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED]">
-                Detail Proses Magang
+                Review DPL &middot; Tanpa Login
               </p>
 
               <h1 className="mt-0.5 text-xl font-semibold leading-tight text-slate-900 sm:text-2xl">
-                {internship.id}
+                Review Akademik Klaim Konversi
               </h1>
 
               <p className="mt-0.5 text-sm text-slate-400">
-                {internship.studentName} · {internship.position || 'Posisi Magang'}
+                ID Magang: {internship.id} &middot; Mahasiswa: {internship.studentName}
               </p>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-1 self-start rounded-full bg-slate-50 p-1.5 sm:self-auto">
+          <div className="flex shrink-0 flex-wrap items-center gap-3 self-start sm:self-auto">
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-white hover:text-[#7C3AED] hover:shadow-sm"
+              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             >
               <ArrowLeftIcon className="h-3.5 w-3.5" />
               Kembali
             </Link>
 
-            <span className="hidden h-4 w-px bg-slate-200 sm:block" />
-
-            <span className="hidden rounded-full px-3 py-2 text-xs font-medium text-slate-500 sm:inline-flex">
-              Tahap 3 dari 4
-            </span>
-
-            <span className="h-4 w-px bg-slate-200" />
-
-            <span className="px-1">
-              <StatusBadge
-                status={internship.status}
-                label={getStatusLabel(internship.status)}
-              />
+            <span
+              className={`w-fit rounded-full px-3.5 py-1.5 text-xs font-semibold ${
+                reviewSubmitted
+                  ? internship.dplReview.decision === 'APPROVED'
+                    ? 'bg-emerald-50 text-emerald-700 font-bold'
+                    : 'bg-red-50 text-red-700 font-bold'
+                  : 'bg-amber-50 text-amber-700 font-bold'
+              }`}
+            >
+              {reviewSubmitted
+                ? internship.dplReview.decision === 'APPROVED'
+                  ? 'Klaim Disetujui'
+                  : 'Revisi Diminta'
+                : 'Menunggu Review DPL'}
             </span>
           </div>
-        </div>
-
-        <div className="h-1 w-full bg-slate-100">
-          <div
-            className="h-full bg-[#7C3AED] transition-all duration-500"
-            style={{ width: '75%' }}
-          />
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-8 lg:px-8">
-        <div className="mb-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
-          <nav className="flex min-w-max gap-1">
-            {['Pengajuan', 'Usulan', 'Klaim', 'Hasil'].map((tab) => {
-              const active = tab === 'Klaim'
-              const accessible = tab !== 'Hasil'
-
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  disabled={!active}
-                  className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? 'bg-[#7C3AED] text-white shadow-sm'
-                      : accessible
-                        ? 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                        : 'cursor-not-allowed text-slate-300'
-                  }`}
-                >
-                  {tab}
-                  {!accessible && (
-                    <LockIcon className="h-3 w-3" />
-                  )}
-                </button>
-              )
-            })}
-          </nav>
-        </div>
         {message && (
           <div
             className={`mb-6 rounded-2xl border px-5 py-4 text-sm font-medium ${
@@ -351,7 +316,7 @@ function DplReview() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
           <div className="border-b border-slate-100 pb-6">
             <h2 className="text-lg font-bold text-slate-900">
               Informasi Mahasiswa dan Magang
@@ -389,7 +354,7 @@ function DplReview() {
           </dl>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
           <div className="border-b border-slate-100 pb-6">
             <h2 className="text-lg font-bold text-slate-900">
               Penilaian Mitra
@@ -426,7 +391,7 @@ function DplReview() {
           )}
         </section>
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
           <div className="border-b border-slate-100 pb-6">
             <h2 className="text-lg font-bold text-slate-900">
               Identitas DPL
@@ -470,7 +435,7 @@ function DplReview() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
           <div className="border-b border-slate-100 pb-6">
             <h2 className="text-lg font-bold text-slate-900">
               Review per Mata Kuliah
@@ -798,7 +763,7 @@ function InfoItem({ label, value }) {
 function MessagePage({ title, description }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl font-bold text-red-600">
           !
         </div>
@@ -840,42 +805,6 @@ function ArrowLeftIcon(props) {
   )
 }
 
-function LockIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <rect x="5" y="11" width="14" height="9" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
 
-function StatusBadge({ status, label }) {
-  const styles = {
-    DRAFT_PENGAJUAN: 'bg-slate-100 text-slate-600',
-    MENUNGGU_VERIFIKASI: 'bg-amber-50 text-amber-700',
-    PERLU_PERBAIKAN_PENGAJUAN: 'bg-red-50 text-red-700',
-    MAGANG_TERVERIFIKASI: 'bg-emerald-50 text-emerald-700',
-    DRAFT_USULAN: 'bg-[#F3E8FF] text-[#6D28D9]',
-    MENUNGGU_VALIDASI_USULAN: 'bg-amber-50 text-amber-700',
-    PERLU_REVISI_USULAN: 'bg-red-50 text-red-700',
-    USULAN_DISETUJUI: 'bg-emerald-50 text-emerald-700',
-    DRAFT_KLAIM: 'bg-[#F3E8FF] text-[#6D28D9]',
-    MENUNGGU_PENILAIAN_MITRA: 'bg-amber-50 text-amber-700',
-    MENUNGGU_REVIEW_DPL: 'bg-amber-50 text-amber-700',
-    PERLU_REVISI_KLAIM: 'bg-red-50 text-red-700',
-    SIAP_FINALISASI: 'bg-[#F3E8FF] text-[#6D28D9]',
-    SELESAI: 'bg-emerald-50 text-emerald-700',
-  }
-
-  return (
-    <span
-      className={`w-fit rounded-full px-3 py-1.5 text-xs font-medium ${
-        styles[status] || 'bg-slate-100 text-slate-600'
-      }`}
-    >
-      {label}
-    </span>
-  )
-}
 
 export default DplReview

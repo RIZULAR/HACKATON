@@ -6,63 +6,8 @@ import AdminInternshipDetail from './pages/AdminInternshipDetail.jsx'
 import HeadDashboard from './pages/HeadDashboard.jsx'
 import PartnerAssessment from './pages/PartnerAssessment.jsx'
 import DplReview from './pages/DplReview.jsx'
+import Login from './pages/Login.jsx'
 
-const roles = [
-  {
-    id: 'mahasiswa',
-    title: 'Mahasiswa',
-    description:
-      'Ajukan magang, susun usulan konversi, unggah bukti, dan lihat hasil.',
-    footnote: 'Mengajukan & memantau',
-    path: '/mahasiswa',
-    accent: '#7C3AED',
-    bg: '#F3E8FF',
-    border: '#DDD6FE',
-    glow: 'hover:shadow-[#7C3AED]/20',
-    iconGradient: 'from-[#7C3AED] to-[#6D28D9]',
-    icon: (
-      <path d="M12 3 2 8l10 5 8-4v6M6 10.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-5.5" />
-    ),
-  },
-  {
-    id: 'prodi',
-    title: 'Prodi / Admin',
-    description:
-      'Verifikasi pengajuan, validasi usulan, dan finalisasi hasil konversi.',
-    footnote: 'Memverifikasi & mengesahkan',
-    path: '/admin',
-    accent: '#F97316',
-    bg: '#FFEDD5',
-    border: '#FED7AA',
-    glow: 'hover:shadow-[#F97316]/20',
-    iconGradient: 'from-[#F97316] to-[#EA580C]',
-    icon: (
-      <>
-        <rect x="5" y="4" width="14" height="17" rx="2" />
-        <path d="M9 3.5h6M8.5 11.5l2.2 2.2L15.5 9" />
-      </>
-    ),
-  },
-  {
-    id: 'kaprodi',
-    title: 'Kaprodi',
-    description:
-      'Pantau seluruh proses konversi magang dalam mode hanya-baca.',
-    footnote: 'Mengawasi seluruh proses',
-    path: '/kaprodi',
-    accent: '#6D28D9',
-    bg: '#EDE9FE',
-    border: '#DDD6FE',
-    glow: 'hover:shadow-[#6D28D9]/20',
-    iconGradient: 'from-[#6D28D9] to-[#4C1D95]',
-    icon: (
-      <>
-        <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
-        <circle cx="12" cy="12" r="3" />
-      </>
-    ),
-  },
-]
 
 const studyPrograms = [
   'Teknik Informatika',
@@ -70,26 +15,6 @@ const studyPrograms = [
   'Desain Komunikasi Visual',
   'Manajemen',
 ]
-
-function RoleIcon({ children, gradient }) {
-  return (
-    <span
-      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient} shadow-md`}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5.5 w-5.5"
-      >
-        {children}
-      </svg>
-    </span>
-  )
-}
 
 function LandingNav() {
   return (
@@ -326,49 +251,65 @@ function RoleSelection() {
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
-          {roles.map((role) => (
-            <article
-              key={role.id}
-              className={`group flex flex-col rounded-2xl border p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${role.glow}`}
-              style={{ backgroundColor: role.bg, borderColor: role.border }}
-            >
-              <RoleIcon gradient={role.iconGradient}>{role.icon}</RoleIcon>
+          {/* Mahasiswa Card */}
+          <article className="group flex flex-col rounded-2xl border border-[#DDD6FE] bg-[#F3E8FF] p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#7C3AED]/10">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-md">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5.5 w-5.5">
+                <path d="M12 3 2 8l10 5 8-4v6M6 10.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-5.5" />
+              </svg>
+            </span>
+            <h3 className="mt-5 text-xl font-semibold text-slate-900">Mahasiswa</h3>
+            <p className="mt-0.5 text-xs font-medium text-[#7C3AED]">Mengajukan & memantau</p>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">
+              Ajukan magang, susun usulan konversi, unggah bukti, dan lihat hasil.
+            </p>
+            <Link to="/login/mahasiswa" className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#7C3AED] shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 group-hover:shadow-md">
+              Masuk sebagai Mahasiswa &rarr;
+            </Link>
+          </article>
 
-              <h3 className="mt-5 text-xl font-semibold text-slate-900">
-                {role.title}
-              </h3>
+          {/* Admin Card */}
+          <article className="group flex flex-col rounded-2xl border border-[#DDD6FE] bg-[#F3E8FF] p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#7C3AED]/10">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-md">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5.5 w-5.5">
+                <rect x="5" y="4" width="14" height="17" rx="2" />
+                <path d="M9 3.5h6M8.5 11.5l2.2 2.2L15.5 9" />
+              </svg>
+            </span>
+            <h3 className="mt-5 text-xl font-semibold text-slate-900">Prodi / Admin</h3>
+            <p className="mt-0.5 text-xs font-medium text-[#7C3AED]">Memverifikasi & mengesahkan</p>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">
+              Verifikasi pengajuan, validasi usulan, dan finalisasi hasil konversi.
+            </p>
+            <Link to="/login/admin" className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#7C3AED] shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 group-hover:shadow-md">
+              Masuk sebagai Prodi / Admin &rarr;
+            </Link>
+          </article>
 
-              <p className="mt-0.5 text-xs font-medium" style={{ color: role.accent }}>
-                {role.footnote}
-              </p>
-
-              <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">
-                {role.description}
-              </p>
-
-              <Link
-                to={role.path}
-                className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 group-hover:shadow-md"
-                style={{ color: role.accent }}
-              >
-                Masuk sebagai {role.title}
-                <span aria-hidden="true" className="transition group-hover:translate-x-1">
-                  &rarr;
-                </span>
-              </Link>
-            </article>
-          ))}
+          {/* Kaprodi Card */}
+          <article className="group flex flex-col rounded-2xl border border-[#DDD6FE] bg-[#F3E8FF] p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#7C3AED]/10">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-md">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5.5 w-5.5">
+                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </span>
+            <h3 className="mt-5 text-xl font-semibold text-slate-900">Kaprodi</h3>
+            <p className="mt-0.5 text-xs font-medium text-[#7C3AED]">Mengawasi seluruh proses</p>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">
+              Pantau seluruh proses konversi magang dalam mode hanya-baca.
+            </p>
+            <Link to="/login/kaprodi" className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#7C3AED] shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 group-hover:shadow-md">
+              Masuk sebagai Kaprodi &rarr;
+            </Link>
+          </article>
         </div>
       </section>
 
       {/* External access */}
       <section id="eksternal" className="mx-auto max-w-7xl px-6 pb-16 lg:px-10">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#7C3AED] via-[#6D28D9] to-[#F97316] p-8 text-white shadow-xl shadow-[#7C3AED]/20 md:p-10 animate-fade-in">
-          {/* Decorative background lights */}
-          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[#F97316]/20 blur-3xl" />
-
-          <span className="relative inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/80">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 text-slate-900 md:p-10 animate-fade-in">
+          <span className="relative inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#7C3AED]">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F97316]" />
@@ -379,35 +320,35 @@ function RoleSelection() {
           <div className="relative mt-5 flex flex-col gap-4 sm:flex-row sm:items-stretch">
             <Link
               to="/mitra/demo-mitra-001"
-              className="group relative flex flex-1 items-center justify-between rounded-2xl bg-white/10 px-6 py-5 border border-white/15 backdrop-blur-md transition-all duration-300 hover:bg-white/20 hover:scale-[1.02] shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="group relative flex flex-1 items-center justify-between rounded-2xl border border-slate-200 bg-white px-6 py-5 transition-all duration-300 hover:border-[#7C3AED] hover:bg-[#F3E8FF]/10 hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]"
             >
               <span>
-                <span className="block text-[11px] font-bold uppercase tracking-wider text-purple-200">Langkah 1</span>
-                <span className="mt-1 block text-lg font-bold">Tautan Penilaian Mitra</span>
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-purple-600">Langkah 1</span>
+                <span className="mt-1 block text-lg font-bold text-slate-900">Tautan Penilaian Mitra</span>
               </span>
-              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition group-hover:translate-x-1 group-hover:bg-white/30 font-bold">&rarr;</span>
+              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition group-hover:translate-x-1 group-hover:bg-[#7C3AED] group-hover:text-white font-bold">&rarr;</span>
             </Link>
 
             <div aria-hidden="true" className="hidden w-10 flex-none items-center justify-center sm:flex">
               <svg viewBox="0 0 40 24" className="h-4 w-10">
-                <path d="M0 12 H40" stroke="#FFFFFF" strokeOpacity="0.4" strokeWidth="1.5" strokeDasharray="3 4" fill="none" />
-                <path d="M35 8 L40 12 L35 16" stroke="#FFFFFF" strokeOpacity="0.4" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M0 12 H40" stroke="#CBD5E1" strokeWidth="1.5" strokeDasharray="3 4" fill="none" />
+                <path d="M35 8 L40 12 L35 16" stroke="#94A3B8" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
 
             <Link
               to="/dpl/demo-dpl-001"
-              className="group relative flex flex-1 items-center justify-between rounded-2xl bg-white/10 px-6 py-5 border border-white/15 backdrop-blur-md transition-all duration-300 hover:bg-white/20 hover:scale-[1.02] shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="group relative flex flex-1 items-center justify-between rounded-2xl border border-slate-200 bg-white px-6 py-5 transition-all duration-300 hover:border-[#F97316] hover:bg-[#FFEDD5]/10 hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
             >
               <span>
-                <span className="block text-[11px] font-bold uppercase tracking-wider text-orange-200">Langkah 2</span>
-                <span className="mt-1 block text-lg font-bold">Tautan Review DPL</span>
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-orange-600">Langkah 2</span>
+                <span className="mt-1 block text-lg font-bold text-slate-900">Tautan Review DPL</span>
               </span>
-              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition group-hover:translate-x-1 group-hover:bg-white/30 font-bold">&rarr;</span>
+              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition group-hover:translate-x-1 group-hover:bg-[#F97316] group-hover:text-white font-bold">&rarr;</span>
             </Link>
           </div>
 
-          <p className="relative mt-5 text-xs leading-5 text-white/70 font-medium">
+          <p className="relative mt-5 text-xs leading-5 text-slate-500 font-medium">
             * Review DPL baru terbuka setelah pihak Mitra menyelesaikan penilaian kinerjanya. 
             Mitra & DPL masuk lewat tautan token khusus tanpa menggunakan akun login.
           </p>
@@ -428,6 +369,10 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<RoleSelection />} />
+
+      <Route path="/login/mahasiswa" element={<Login role="mahasiswa" />} />
+      <Route path="/login/admin" element={<Login role="prodi" />} />
+      <Route path="/login/kaprodi" element={<Login role="kaprodi" />} />
 
       <Route path="/mahasiswa" element={<StudentDashboard />} />
 

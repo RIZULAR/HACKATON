@@ -1,40 +1,15 @@
-export const CONVERSION_MASTER = [
-  {
-    code: 'IF601',
-    name: 'Rekayasa Perangkat Lunak',
-    credits: 3,
-    cpmk:
-      'Mampu merancang dan mengembangkan perangkat lunak sesuai kebutuhan pengguna.',
-    keywords: [
-      'analisis kebutuhan',
-      'dashboard',
-      'antarmuka',
-      'pengembangan aplikasi',
-      'perangkat lunak',
-      'desain sistem',
-      'ui',
-      'ux',
-    ],
-  },
-  {
-    code: 'IF602',
-    name: 'Pemrograman Web Lanjut',
-    credits: 3,
-    cpmk:
-      'Mampu mengimplementasikan aplikasi web yang terintegrasi dengan layanan backend.',
-    keywords: [
-      'react',
-      'rest api',
-      'integrasi api',
-      'frontend',
-      'pengujian web',
-      'website',
-      'aplikasi web',
-      'endpoint',
-      'javascript',
-    ],
-  },
-]
+import MK_DATA from './mk.json'
+
+export const CONVERSION_MASTER = MK_DATA.map((item) => {
+  const nameKeywords = item.nama.toLowerCase().split(/\s+/).filter(word => word.length > 3);
+  return {
+    code: item.kode,
+    name: item.nama,
+    credits: item.sks,
+    cpmk: item.cpmk.join(' '),
+    keywords: [item.kode.toLowerCase(), item.nama.toLowerCase(), ...nameKeywords],
+  }
+})
 
 function normalizeText(value) {
   return String(value || '')

@@ -9,8 +9,6 @@ import {
   calculateGradeSummary,
 } from '../data/gradeUtils.js'
 import {
-  DPL_DEMO_TOKEN,
-  MITRA_DEMO_TOKEN,
   formatDateRange,
   getStatusLabel,
   loadInternship,
@@ -744,7 +742,6 @@ function AssessmentMonitoringTab({ internship }) {
             internship.partnerSupervisor
           }
           submitted={partnerSubmitted}
-          link={`/mitra/${MITRA_DEMO_TOKEN}`}
           waitingLabel="Menunggu Penilaian Mitra"
         />
 
@@ -755,7 +752,6 @@ function AssessmentMonitoringTab({ internship }) {
             internship.dplName
           }
           submitted={dplSubmitted}
-          link={`/dpl/${DPL_DEMO_TOKEN}`}
           waitingLabel={
             partnerSubmitted
               ? 'Menunggu Review DPL'
@@ -1090,7 +1086,6 @@ function ReviewerStatusCard({
   title,
   reviewer,
   submitted,
-  link,
   waitingLabel,
 }) {
   return (
@@ -1110,14 +1105,6 @@ function ReviewerStatusCard({
       <p className="mt-2 text-sm text-slate-500">
         {reviewer || 'Penilai belum tersedia'}
       </p>
-
-      <Link
-        to={link}
-        className="mt-5 inline-flex rounded-md px-4 py-2.5 text-sm font-semibold text-white transition"
-        style={{ backgroundColor: INDIGO }}
-      >
-        Buka Tautan
-      </Link>
     </article>
   )
 }
