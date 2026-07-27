@@ -1,11 +1,17 @@
 {
   "name": "back-end",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend pendukung untuk Sistem Konversi Nilai Magang Berbasis Outcome-Based Education (OBE)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test-db": "node scripts/test-connection.js"
+    "supabase:status": "supabase status",
+    "seed:users": "node scripts/seed-demo-users.mjs",
+    "seed:courses": "node scripts/import-courses.mjs",
+    "seed:all": "npm run seed:users && npm run seed:courses",
+    "test:connection": "node scripts/smoke-test-connection.mjs",
+    "test:application": "node scripts/smoke-test-application.mjs",
+    "test:conversion": "node scripts/smoke-test-conversion.mjs",
+    "inspect:database": "node scripts/inspect-database-contract.mjs"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +22,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "xlsx": "^0.18.5"
   }
 }

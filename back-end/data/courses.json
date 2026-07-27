@@ -1,0 +1,29 @@
+[
+  {
+    "kode": "ST165",
+    "nama": "Proyek Pemrograman",
+    "sks": 4,
+    "cpmk": [
+      "Mampu merancang arsitektur aplikasi secara berstruktur",
+      "Mampu mengimplementasikan fitur frontend dan backend"
+    ]
+  },
+  {
+    "kode": "IF601",
+    "nama": "Rekayasa Perangkat Lunak",
+    "sks": 3,
+    "cpmk": [
+      "Mampu melakukan analisis kebutuhan perangkat lunak",
+      "Mampu merancang diagram UML dan database"
+    ]
+  },
+  {
+    "kode": "IF602",
+    "nama": "Pemrograman Web Lanjut",
+    "sks": 3,
+    "cpmk": [
+      "Mampu membangun RESTful API dengan Node.js dan Supabase",
+      "Mampu mengintegrasikan antarmuka web modern"
+    ]
+  }
+]
