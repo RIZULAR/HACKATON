@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import StudentResultTab from '../components/StudentResultTab.jsx'
 import {
-  findCourseRecommendations,
+  CONVERSION_MASTER,
   getCourseByCode,
 } from '../data/conversionMaster.js'
 import {
@@ -209,6 +209,8 @@ function StudentInternshipDetail() {
       ? 'Draf Tersimpan'
       : 'Belum Dikirim'
 
+  const stageNumber = tabs.indexOf(getInitialTab(form.status)) + 1
+
   function showMessage(text) {
     setMessage(text)
   }
@@ -383,19 +385,9 @@ function StudentInternshipDetail() {
             }
 
             if (field === 'description') {
-              const recommendationCodes =
-                findCourseRecommendations(value).map(
-                  (course) => course.code,
-                )
-
               return {
                 ...activity,
                 description: value,
-                selectedCourseCodes:
-                  activity.selectedCourseCodes.filter(
-                    (courseCode) =>
-                      recommendationCodes.includes(courseCode),
-                  ),
               }
             }
 
@@ -811,27 +803,24 @@ function StudentInternshipDetail() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-5 lg:px-8">
-          <Link
-            to="/mahasiswa"
-            className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
-          >
-            ← Kembali ke Dashboard
-          </Link>
+    <main className="min-h-screen bg-slate-50 font-sans antialiased">
+      <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-md shadow-[#7C3AED]/25">
+              <FileIcon className="h-5 w-5" />
+            </span>
 
-          <div className="mt-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED]">
                 Detail Proses Magang
               </p>
 
-              <h1 className="mt-2 text-2xl font-bold text-slate-900">
+              <h1 className="mt-0.5 text-xl font-semibold leading-tight text-slate-900 sm:text-2xl">
                 {pageTitle}
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-0.5 text-sm text-slate-400">
                 {form.partnerName
                   ? `${form.partnerName} · ${
                       form.position || 'Posisi belum diisi'
@@ -839,17 +828,44 @@ function StudentInternshipDetail() {
                   : 'Lengkapi data pengajuan magang'}
               </p>
             </div>
-
-            <StatusBadge
-              status={form.status}
-              label={statusLabel}
-            />
           </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-1 self-start rounded-full bg-slate-50 p-1.5 sm:self-auto">
+            <Link
+              to="/mahasiswa"
+              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-white hover:text-[#7C3AED] hover:shadow-sm"
+            >
+              <ArrowLeftIcon className="h-3.5 w-3.5" />
+              Dashboard
+            </Link>
+
+            <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+
+            <span className="hidden rounded-full px-3 py-2 text-xs font-medium text-slate-500 sm:inline-flex">
+              Tahap {stageNumber} dari {tabs.length}
+            </span>
+
+            <span className="h-4 w-px bg-slate-200" />
+
+            <span className="px-1">
+              <StatusBadge
+                status={form.status}
+                label={statusLabel}
+              />
+            </span>
+          </div>
+        </div>
+
+        <div className="h-1 w-full bg-slate-100">
+          <div
+            className="h-full bg-gradient-to-r from-[#7C3AED] to-[#F97316] transition-all duration-500"
+            style={{ width: `${(stageNumber / tabs.length) * 100}%` }}
+          />
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
           <nav className="flex min-w-max gap-1">
             {tabs.map((tab) => {
               const accessible =
@@ -865,16 +881,18 @@ function StudentInternshipDetail() {
                   type="button"
                   disabled={!accessible}
                   onClick={() => handleTabChange(tab)}
-                  className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
+                  className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-medium transition ${
                     activeTab === tab
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-[#7C3AED] text-white shadow-sm'
                       : accessible
-                        ? 'text-slate-600 hover:bg-slate-100'
-                        : 'cursor-not-allowed text-slate-400'
+                        ? 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        : 'cursor-not-allowed text-slate-300'
                   }`}
                 >
                   {tab}
-                  {!accessible && ' · Terkunci'}
+                  {!accessible && (
+                    <LockIcon className="h-3 w-3" />
+                  )}
                 </button>
               )
             })}
@@ -892,7 +910,7 @@ function StudentInternshipDetail() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-bold">
+                  <p className="text-sm font-semibold">
                     {message.includes('berhasil')
                       ? 'Berhasil'
                       : 'Periksa Kembali'}
@@ -906,7 +924,7 @@ function StudentInternshipDetail() {
                 <button
                   type="button"
                   onClick={() => setMessage('')}
-                  className="shrink-0 text-lg font-bold opacity-60 hover:opacity-100"
+                  className="shrink-0 text-lg font-semibold opacity-60 hover:opacity-100"
                   aria-label="Tutup notifikasi"
                 >
                   ×
@@ -993,7 +1011,7 @@ function SubmissionTab({
 
       <form
         onSubmit={onSubmit}
-        className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
+        className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8"
       >
         <PageSectionHeader
           title="Form Pengajuan Magang"
@@ -1007,7 +1025,7 @@ function SubmissionTab({
             description="Data mahasiswa pada skenario demo."
           />
 
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-5 grid gap-5 rounded-2xl bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-3">
             <ReadOnlyField
               label="Nama Mahasiswa"
               value={form.studentName}
@@ -1082,9 +1100,9 @@ function SubmissionTab({
           </div>
 
           {form.startDate && form.endDate && (
-            <p className="mt-4 text-sm text-slate-500">
+            <p className="mt-4 text-sm text-slate-400">
               Periode magang:{' '}
-              <strong className="text-slate-800">
+              <strong className="font-semibold text-slate-700">
                 {formatDateRange(
                   form.startDate,
                   form.endDate,
@@ -1161,16 +1179,16 @@ function ProposalTab({
   onSubmit,
 }) {
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
       <PageSectionHeader
         title="Usulan Konversi"
-        description="Masukkan aktivitas, lalu sistem mencocokkan kata kunci dengan data master."
+        description="Masukkan deskripsi aktivitas magang dan pilih rekomendasi mata kuliah konversi."
         editable={editable}
       />
 
       <InfoBanner
-        title="Rekomendasi berbasis kata kunci"
-        description="Sistem hanya memberikan rekomendasi. Prodi tetap melakukan validasi akhir."
+        title="Pemilihan Mata Kuliah Konversi"
+        description="Pilihlah mata kuliah konversi yang relevan dengan aktivitas Anda. Prodi tetap melakukan validasi akhir terhadap usulan ini."
         type="info"
       />
 
@@ -1203,14 +1221,14 @@ function ProposalTab({
         <button
           type="button"
           onClick={onAddActivity}
-          className="mt-6 rounded-xl border border-indigo-300 px-5 py-3 text-sm font-bold text-indigo-700 hover:bg-indigo-50"
+          className="mt-6 rounded-xl border border-[#E9D5FF] px-5 py-3 text-sm font-medium text-[#7C3AED] transition hover:bg-[#F3E8FF]"
         >
           + Tambah Aktivitas
         </button>
       )}
 
       <div className="mt-8 border-t border-slate-100 pt-7">
-        <label className="text-sm font-semibold text-slate-800">
+        <label className="text-sm font-medium text-slate-700">
           Catatan Umum Usulan
         </label>
 
@@ -1219,7 +1237,7 @@ function ProposalTab({
           value={form.proposal.generalNote}
           disabled={!editable}
           onChange={onNoteChange}
-          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-100"
+          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#F3E8FF] disabled:bg-slate-100"
         />
       </div>
 
@@ -1249,7 +1267,7 @@ function ClaimTab({
   onSubmit,
 }) {
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
       <PageSectionHeader
         title="Klaim Konversi"
         description="Laporkan realisasi kegiatan dan unggah bukti untuk setiap aktivitas."
@@ -1289,7 +1307,7 @@ function ClaimTab({
       </div>
 
       <div className="mt-8 border-t border-slate-100 pt-7">
-        <label className="text-sm font-semibold text-slate-800">
+        <label className="text-sm font-medium text-slate-700">
           Catatan Umum Klaim
         </label>
 
@@ -1299,7 +1317,7 @@ function ClaimTab({
           disabled={!editable}
           onChange={onNoteChange}
           placeholder="Tambahkan informasi umum tentang realisasi kegiatan."
-          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-100"
+          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#F3E8FF] disabled:bg-slate-100"
         />
       </div>
 
@@ -1325,13 +1343,25 @@ function ProposalActivityCard({
   onChange,
   onToggleCourse,
 }) {
-  const recommendations =
-    findCourseRecommendations(activity.description)
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   return (
     <article className="rounded-2xl border border-slate-200 p-5">
       <div className="flex justify-between gap-4">
-        <h3 className="font-bold text-slate-900">
+        <h3 className="font-semibold text-slate-900">
           Aktivitas {number}
         </h3>
 
@@ -1339,7 +1369,7 @@ function ProposalActivityCard({
           <button
             type="button"
             onClick={() => onRemove(activity.id)}
-            className="text-sm font-semibold text-red-600"
+            className="text-sm font-medium text-red-500 hover:text-red-700"
           >
             Hapus
           </button>
@@ -1380,54 +1410,140 @@ function ProposalActivityCard({
       </div>
 
       <div className="mt-6 border-t border-slate-100 pt-5">
-        <p className="text-sm font-bold text-slate-900">
+        <p className="text-sm font-semibold text-slate-900">
           Rekomendasi CPMK dan Mata Kuliah
         </p>
+        
+        {errors[`${activity.id}.selectedCourseCodes`] && (
+          <p className="mt-1 text-sm text-red-500 font-medium">
+            {errors[`${activity.id}.selectedCourseCodes`]}
+          </p>
+        )}
+
+        {editable && (
+          <div className="mt-3 relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none transition hover:border-[#7C3AED] focus:border-[#7C3AED] focus:ring-4 focus:ring-[#F3E8FF] cursor-pointer"
+            >
+              <span className="truncate text-slate-400 font-normal">Pilih Mata Kuliah Konversi...</span>
+              <svg
+                className={`h-5 w-5 text-slate-400 shrink-0 transition-transform duration-200 ${
+                  isOpen ? 'rotate-180' : ''
+                }`}
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+
+            {isOpen && (
+              <div className="absolute left-0 right-0 z-50 mt-2 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/5">
+                {CONVERSION_MASTER.map((course) => {
+                  const isSelected = activity.selectedCourseCodes.includes(course.code);
+                  return (
+                    <button
+                      key={course.code}
+                      type="button"
+                      disabled={isSelected}
+                      onClick={() => {
+                        onToggleCourse(activity.id, course.code);
+                        setIsOpen(false);
+                      }}
+                      className={`flex w-full items-start gap-3 px-4 py-3 text-left text-sm transition ${
+                        isSelected
+                          ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                          : 'text-slate-700 hover:bg-slate-50 hover:text-[#7C3AED] cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-300">
+                        {isSelected && (
+                          <svg
+                            className="h-3.5 w-3.5 text-[#7C3AED]"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-900">
+                          {course.code} · {course.name}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 line-clamp-1">
+                          {course.cpmk}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {course.credits} SKS
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 space-y-4">
-          {recommendations.map((course) => {
-            const selected =
-              activity.selectedCourseCodes.includes(
-                course.code,
-              )
+          {activity.selectedCourseCodes.length > 0 ? (
+            activity.selectedCourseCodes.map((courseCode) => {
+              const course = getCourseByCode(courseCode)
+              if (!course) return null
 
-            return (
-              <label
-                key={course.code}
-                className={`block rounded-2xl border p-5 ${
-                  selected
-                    ? 'border-indigo-400 bg-indigo-50'
-                    : 'border-slate-200'
-                }`}
-              >
-                <div className="flex gap-4">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    disabled={!editable}
-                    onChange={() =>
-                      onToggleCourse(
-                        activity.id,
-                        course.code,
-                      )
-                    }
-                    className="mt-1 accent-indigo-600"
-                  />
+              return (
+                <div
+                  key={course.code}
+                  className="block rounded-2xl border border-[#7C3AED] bg-[#F3E8FF] p-5 transition"
+                >
+                  <div className="flex gap-4 items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {course.code} · {course.name} ·{' '}
+                        {course.credits} SKS
+                      </p>
 
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {course.code} · {course.name} ·{' '}
-                      {course.credits} SKS
-                    </p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {course.cpmk}
+                      </p>
+                    </div>
 
-                    <p className="mt-2 text-sm text-slate-600">
-                      {course.cpmk}
-                    </p>
+                    {editable && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onToggleCourse(
+                            activity.id,
+                            course.code,
+                          )
+                        }
+                        className="text-sm font-semibold text-red-500 hover:text-red-700 focus:outline-none cursor-pointer"
+                      >
+                        Hapus
+                      </button>
+                    )}
                   </div>
                 </div>
-              </label>
-            )
-          })}
+              )
+            })
+          ) : (
+            <p className="text-sm text-slate-500 italic">
+              Belum ada mata kuliah konversi yang dipilih. {editable ? 'Silakan pilih dari dropdown di atas.' : ''}
+            </p>
+          )}
         </div>
       </div>
     </article>
@@ -1448,22 +1564,22 @@ function ClaimActivityCard({
     <article className="rounded-2xl border border-slate-200 p-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#7C3AED]">
             Klaim Aktivitas {number}
           </p>
 
-          <h3 className="mt-2 font-bold text-slate-900">
+          <h3 className="mt-2 font-semibold text-slate-900">
             {activity.proposalDescription}
           </h3>
         </div>
 
-        <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+        <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
           Rencana {activity.estimatedHours} jam
         </span>
       </div>
 
       <div className="mt-5 rounded-2xl bg-slate-50 p-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Mata Kuliah yang Disetujui
         </p>
 
@@ -1476,7 +1592,7 @@ function ClaimActivityCard({
               return (
                 <span
                   key={courseCode}
-                  className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-800"
+                  className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700"
                 >
                   {course?.code} · {course?.name}
                 </span>
@@ -1570,11 +1686,11 @@ function ClaimActivityCard({
       </div>
 
       <div className="mt-6 border-t border-slate-100 pt-5">
-        <p className="text-sm font-bold text-slate-900">
+        <p className="text-sm font-semibold text-slate-900">
           Bukti Aktivitas
         </p>
 
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-400">
           PDF, JPG, atau PNG. Maksimal 1 MB untuk demo
           lokal.
         </p>
@@ -1583,7 +1699,7 @@ function ClaimActivityCard({
           <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               <div>
-                <p className="font-bold text-emerald-900">
+                <p className="font-semibold text-emerald-900">
                   {activity.evidence.name}
                 </p>
 
@@ -1600,7 +1716,7 @@ function ClaimActivityCard({
                   href={activity.evidence.dataUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-emerald-700"
+                  className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-emerald-700"
                 >
                   Buka Bukti
                 </a>
@@ -1611,7 +1727,7 @@ function ClaimActivityCard({
                     onClick={() =>
                       onRemoveEvidence(activity.id)
                     }
-                    className="rounded-xl bg-red-50 px-4 py-2 text-sm font-bold text-red-600"
+                    className="rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-red-600"
                   >
                     Hapus
                   </button>
@@ -1627,7 +1743,7 @@ function ClaimActivityCard({
             onChange={(event) =>
               onEvidenceChange(activity.id, event)
             }
-            className="mt-4 block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:font-bold file:text-white disabled:cursor-not-allowed"
+            className="mt-4 block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-[#7C3AED] file:px-4 file:py-2 file:font-medium file:text-white disabled:cursor-not-allowed"
           />
         )}
 
@@ -1649,16 +1765,16 @@ function PageSectionHeader({
   return (
     <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-6 md:flex-row md:items-center">
       <div>
-        <h2 className="text-lg font-bold text-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900">
           {title}
         </h2>
 
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-400">
           {description}
         </p>
       </div>
 
-      <span className="w-fit rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+      <span className="w-fit rounded-full bg-[#F3E8FF] px-3 py-1.5 text-xs font-medium text-[#7C3AED]">
         {editable ? 'Dapat Diedit' : 'Hanya Baca'}
       </span>
     </div>
@@ -1677,7 +1793,7 @@ function InfoBanner({ title, description, type }) {
     <div
       className={`mt-6 rounded-2xl border p-5 ${styles[type]}`}
     >
-      <p className="text-sm font-bold">{title}</p>
+      <p className="text-sm font-semibold">{title}</p>
 
       <p className="mt-1 text-sm leading-6">
         {description}
@@ -1698,7 +1814,7 @@ function ActionButtons({
       <button
         type="button"
         onClick={onSaveDraft}
-        className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
       >
         {draftLabel}
       </button>
@@ -1708,7 +1824,7 @@ function ActionButtons({
         onClick={
           submitType === 'button' ? onSubmit : undefined
         }
-        className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700"
+        className="rounded-xl bg-[#7C3AED] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#6D28D9]"
       >
         {submitLabel}
       </button>
@@ -1719,11 +1835,11 @@ function ActionButtons({
 function SectionTitle({ title, description }) {
   return (
     <div>
-      <h2 className="font-bold text-slate-900">
+      <h2 className="font-semibold text-slate-900">
         {title}
       </h2>
 
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-400">
         {description}
       </p>
     </div>
@@ -1733,7 +1849,7 @@ function SectionTitle({ title, description }) {
 function ReadOnlyField({ label, value }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
         {label}
       </p>
 
@@ -1756,7 +1872,7 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="text-sm font-semibold text-slate-800">
+      <label className="text-sm font-medium text-slate-700">
         {label}
         <span className="ml-1 text-red-500">*</span>
       </label>
@@ -1771,7 +1887,7 @@ function FormField({
         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-4 disabled:bg-slate-100 ${
           error
             ? 'border-red-300 focus:ring-red-100'
-            : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-100'
+            : 'border-slate-300 focus:border-[#7C3AED] focus:ring-[#F3E8FF]'
         }`}
       />
 
@@ -1795,7 +1911,7 @@ function TextAreaField({
 }) {
   return (
     <div>
-      <label className="text-sm font-semibold text-slate-800">
+      <label className="text-sm font-medium text-slate-700">
         {label}
       </label>
 
@@ -1809,7 +1925,7 @@ function TextAreaField({
         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-4 disabled:bg-slate-100 ${
           error
             ? 'border-red-300 focus:ring-red-100'
-            : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-100'
+            : 'border-slate-300 focus:border-[#7C3AED] focus:ring-[#F3E8FF]'
         }`}
       />
 
@@ -1824,21 +1940,21 @@ function TextAreaField({
 
 function StatusBadge({ status, label }) {
   const styles = {
-    DRAFT_PENGAJUAN: 'bg-slate-100 text-slate-700',
+    DRAFT_PENGAJUAN: 'bg-slate-100 text-slate-600',
     MENUNGGU_VERIFIKASI:
       'bg-amber-50 text-amber-700',
     PERLU_PERBAIKAN_PENGAJUAN:
       'bg-red-50 text-red-700',
     MAGANG_TERVERIFIKASI:
       'bg-emerald-50 text-emerald-700',
-    DRAFT_USULAN: 'bg-indigo-50 text-indigo-700',
+    DRAFT_USULAN: 'bg-[#F3E8FF] text-[#6D28D9]',
     MENUNGGU_VALIDASI_USULAN:
       'bg-amber-50 text-amber-700',
     PERLU_REVISI_USULAN:
       'bg-red-50 text-red-700',
     USULAN_DISETUJUI:
       'bg-emerald-50 text-emerald-700',
-    DRAFT_KLAIM: 'bg-indigo-50 text-indigo-700',
+    DRAFT_KLAIM: 'bg-[#F3E8FF] text-[#6D28D9]',
     MENUNGGU_PENILAIAN_MITRA:
       'bg-amber-50 text-amber-700',
     MENUNGGU_REVIEW_DPL:
@@ -1846,19 +1962,46 @@ function StatusBadge({ status, label }) {
     PERLU_REVISI_KLAIM:
       'bg-red-50 text-red-700',
     SIAP_FINALISASI:
-      'bg-indigo-50 text-indigo-700',
+      'bg-[#F3E8FF] text-[#6D28D9]',
     SELESAI: 'bg-emerald-50 text-emerald-700',
   }
 
   return (
     <span
-      className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${
+      className={`w-fit rounded-full px-3 py-1.5 text-xs font-medium ${
         styles[status] ||
-        'bg-slate-100 text-slate-700'
+        'bg-slate-100 text-slate-600'
       }`}
     >
       {label}
     </span>
+  )
+}
+
+function FileIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" {...props}>
+      <path d="M8 3h6l4 4v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 3v4h4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.5 12.5h5M9.5 15.5h5M9.5 9.5h2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ArrowLeftIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M19 12H5M5 12l6-6M5 12l6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function LockIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 

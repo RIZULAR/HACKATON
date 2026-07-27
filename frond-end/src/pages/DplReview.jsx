@@ -253,42 +253,92 @@ function DplReview() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-5 lg:px-8">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
-            Review DPL Tanpa Login
-          </p>
+    <main className="min-h-screen bg-slate-50 font-sans antialiased">
+      <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/20">
+              <FileIcon className="h-5 w-5" />
+            </span>
 
-          <div className="mt-3 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">
-                Review Akademik Klaim Konversi
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED]">
+                Detail Proses Magang
+              </p>
+
+              <h1 className="mt-0.5 text-xl font-semibold leading-tight text-slate-900 sm:text-2xl">
+                {internship.id}
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
-                Token terhubung dengan ID Magang {internship.id}
+              <p className="mt-0.5 text-sm text-slate-400">
+                {internship.studentName} · {internship.position || 'Posisi Magang'}
               </p>
             </div>
+          </div>
 
-            <span
-              className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${
-                reviewSubmitted
-                  ? 'bg-emerald-50 text-emerald-700'
-                  : 'bg-amber-50 text-amber-700'
-              }`}
+          <div className="flex shrink-0 flex-wrap items-center gap-1 self-start rounded-full bg-slate-50 p-1.5 sm:self-auto">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-white hover:text-[#7C3AED] hover:shadow-sm"
             >
-              {reviewSubmitted
-                ? internship.dplReview.decision === 'APPROVED'
-                  ? 'Klaim Disetujui'
-                  : 'Revisi Diminta'
-                : 'Menunggu Review DPL'}
+              <ArrowLeftIcon className="h-3.5 w-3.5" />
+              Kembali
+            </Link>
+
+            <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+
+            <span className="hidden rounded-full px-3 py-2 text-xs font-medium text-slate-500 sm:inline-flex">
+              Tahap 3 dari 4
+            </span>
+
+            <span className="h-4 w-px bg-slate-200" />
+
+            <span className="px-1">
+              <StatusBadge
+                status={internship.status}
+                label={getStatusLabel(internship.status)}
+              />
             </span>
           </div>
+        </div>
+
+        <div className="h-1 w-full bg-slate-100">
+          <div
+            className="h-full bg-[#7C3AED] transition-all duration-500"
+            style={{ width: '75%' }}
+          />
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-8 lg:px-8">
+        <div className="mb-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
+          <nav className="flex min-w-max gap-1">
+            {['Pengajuan', 'Usulan', 'Klaim', 'Hasil'].map((tab) => {
+              const active = tab === 'Klaim'
+              const accessible = tab !== 'Hasil'
+
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  disabled={!active}
+                  className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-medium transition ${
+                    active
+                      ? 'bg-[#7C3AED] text-white shadow-sm'
+                      : accessible
+                        ? 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        : 'cursor-not-allowed text-slate-300'
+                  }`}
+                >
+                  {tab}
+                  {!accessible && (
+                    <LockIcon className="h-3 w-3" />
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+        </div>
         {message && (
           <div
             className={`mb-6 rounded-2xl border px-5 py-4 text-sm font-medium ${
@@ -408,7 +458,7 @@ function DplReview() {
               className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-4 disabled:cursor-not-allowed disabled:bg-slate-100 ${
                 errors.reviewerName
                   ? 'border-red-300 focus:ring-red-100'
-                  : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-100'
+                  : 'border-slate-300 focus:border-[#7C3AED] focus:ring-[#F3E8FF]'
               }`}
             />
 
@@ -464,7 +514,7 @@ function DplReview() {
                 setMessage('')
               }}
               placeholder="Berikan kesimpulan akademik terhadap klaim mahasiswa."
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#7C3AED] focus:ring-4 focus:ring-[#F3E8FF] disabled:cursor-not-allowed disabled:bg-slate-100"
             />
           </div>
 
@@ -552,9 +602,9 @@ function DplReview() {
         <div className="mt-6 text-center">
           <Link
             to="/"
-            className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+            className="text-sm font-semibold text-[#7C3AED] hover:text-[#6D28D9]"
           >
-            Kembali ke halaman demo
+            Kembali ke Halaman Demo
           </Link>
         </div>
       </div>
@@ -583,7 +633,7 @@ function CourseReviewCard({
     <article className="rounded-2xl border border-slate-200 p-5">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#7C3AED]">
             {course?.code}
           </p>
 
@@ -648,7 +698,7 @@ function CourseReviewCard({
                 href={activity.evidence.dataUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 inline-flex text-sm font-bold text-indigo-600 hover:text-indigo-800"
+                className="mt-4 inline-flex text-sm font-bold text-[#7C3AED] hover:text-[#6D28D9]"
               >
                 Buka bukti: {activity.evidence.name}
               </a>
@@ -689,7 +739,7 @@ function CourseReviewCard({
             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-4 disabled:bg-slate-100 ${
               errors[`${item.courseCode}.score`]
                 ? 'border-red-300 focus:ring-red-100'
-                : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-100'
+                : 'border-slate-300 focus:border-[#7C3AED] focus:ring-[#F3E8FF]'
             }`}
           />
 
@@ -716,7 +766,7 @@ function CourseReviewCard({
             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-4 disabled:bg-slate-100 ${
               errors[`${item.courseCode}.comment`]
                 ? 'border-red-300 focus:ring-red-100'
-                : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-100'
+                : 'border-slate-300 focus:border-[#7C3AED] focus:ring-[#F3E8FF]'
             }`}
           />
 
@@ -769,6 +819,62 @@ function MessagePage({ title, description }) {
         </Link>
       </div>
     </main>
+  )
+}
+
+function FileIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" {...props}>
+      <path d="M8 3h6l4 4v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 3v4h4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.5 12.5h5M9.5 15.5h5M9.5 9.5h2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ArrowLeftIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M19 12H5M5 12l6-6M5 12l6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function LockIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function StatusBadge({ status, label }) {
+  const styles = {
+    DRAFT_PENGAJUAN: 'bg-slate-100 text-slate-600',
+    MENUNGGU_VERIFIKASI: 'bg-amber-50 text-amber-700',
+    PERLU_PERBAIKAN_PENGAJUAN: 'bg-red-50 text-red-700',
+    MAGANG_TERVERIFIKASI: 'bg-emerald-50 text-emerald-700',
+    DRAFT_USULAN: 'bg-[#F3E8FF] text-[#6D28D9]',
+    MENUNGGU_VALIDASI_USULAN: 'bg-amber-50 text-amber-700',
+    PERLU_REVISI_USULAN: 'bg-red-50 text-red-700',
+    USULAN_DISETUJUI: 'bg-emerald-50 text-emerald-700',
+    DRAFT_KLAIM: 'bg-[#F3E8FF] text-[#6D28D9]',
+    MENUNGGU_PENILAIAN_MITRA: 'bg-amber-50 text-amber-700',
+    MENUNGGU_REVIEW_DPL: 'bg-amber-50 text-amber-700',
+    PERLU_REVISI_KLAIM: 'bg-red-50 text-red-700',
+    SIAP_FINALISASI: 'bg-[#F3E8FF] text-[#6D28D9]',
+    SELESAI: 'bg-emerald-50 text-emerald-700',
+  }
+
+  return (
+    <span
+      className={`w-fit rounded-full px-3 py-1.5 text-xs font-medium ${
+        styles[status] || 'bg-slate-100 text-slate-600'
+      }`}
+    >
+      {label}
+    </span>
   )
 }
 

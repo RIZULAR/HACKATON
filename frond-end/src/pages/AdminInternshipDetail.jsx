@@ -17,6 +17,18 @@ import {
   saveInternship,
 } from '../data/internshipStore.js'
 
+// ---------------------------------------------------------------------------
+// Design tokens — a "registrar's ledger" identity: deep indigo for
+// authority/primary actions, a muted gold for approvals & completed stages,
+// warm stone neutrals instead of cool slate, serif for headings, monospace
+// for record numbers, course codes and IDs.
+// ---------------------------------------------------------------------------
+const INDIGO = '#7C3AED'
+const INDIGO_DEEP = '#6D28D9'
+const GOLD = '#7C3AED'
+const GOLD_SOFT = '#F3E8FF'
+const GOLD_BORDER = '#E9D5FF'
+
 const tabs = [
   'Verifikasi',
   'Usulan',
@@ -102,6 +114,9 @@ function AdminInternshipDetail() {
 
   const finalizationAccessible =
     finalizationStatuses.includes(internship.status)
+
+  const stageNumber =
+    tabs.indexOf(getInitialTab(internship.status)) + 1
 
   const gradeRows = useMemo(
     () =>
@@ -310,30 +325,45 @@ function AdminInternshipDetail() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-5 lg:px-8">
-          <Link
-            to="/admin"
-            className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
-          >
-            ← Kembali ke Dashboard Prodi
-          </Link>
+    <main className="min-h-screen bg-[#F8FAFC] font-sans antialiased">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex items-center gap-3.5">
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
+              style={{ backgroundColor: INDIGO }}
+            >
+              <ClipboardIcon className="h-5 w-5" />
+            </span>
 
-          <div className="mt-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
-                Detail Review Prodi
+              <p
+                className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+                style={{ color: GOLD }}
+              >
+                Berkas Review Program Studi
               </p>
 
-              <h1 className="mt-2 text-2xl font-bold text-slate-900">
+              <h1
+                className="mt-0.5 text-lg font-semibold leading-tight text-[#0F172A] sm:text-xl"
+              >
                 {internship.id}
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-0.5 text-sm text-slate-500">
                 {internship.studentName} · {internship.partnerName}
               </p>
             </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3 self-start sm:self-auto">
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-[#0F172A]"
+            >
+              <ArrowLeftIcon className="h-3.5 w-3.5" />
+              Dashboard Prodi
+            </Link>
 
             <StatusBadge status={internship.status} />
           </div>
@@ -341,38 +371,15 @@ function AdminInternshipDetail() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-          <nav className="flex min-w-max gap-1">
-            {tabs.map((tab) => {
-              const accessible =
-                tab === 'Verifikasi' ||
-                (tab === 'Usulan' && proposalAccessible) ||
-                (tab === 'Penilaian' &&
-                  assessmentAccessible) ||
-                (tab === 'Finalisasi' &&
-                  finalizationAccessible)
-
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  disabled={!accessible}
-                  onClick={() => handleTabChange(tab)}
-                  className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
-                    activeTab === tab
-                      ? 'bg-indigo-600 text-white'
-                      : accessible
-                        ? 'text-slate-600 hover:bg-slate-100'
-                        : 'cursor-not-allowed text-slate-400'
-                  }`}
-                >
-                  {tab}
-                  {!accessible && ' · Terkunci'}
-                </button>
-              )
-            })}
-          </nav>
-        </div>
+        <StageTracker
+          tabs={tabs}
+          activeTab={activeTab}
+          stageNumber={stageNumber}
+          proposalAccessible={proposalAccessible}
+          assessmentAccessible={assessmentAccessible}
+          finalizationAccessible={finalizationAccessible}
+          onChange={handleTabChange}
+        />
 
         {message && (
           <Toast
@@ -440,6 +447,84 @@ function AdminInternshipDetail() {
   )
 }
 
+// A stepped, numbered tracker instead of a pill-tab row + separate progress
+// bar — the four tabs really are a sequence (verify → propose → assess →
+// finalize), so numbering here encodes real information rather than
+// decorating it.
+function StageTracker({
+  tabs,
+  activeTab,
+  stageNumber,
+  proposalAccessible,
+  assessmentAccessible,
+  finalizationAccessible,
+  onChange,
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white px-5 py-5 sm:px-8">
+      <ol className="flex min-w-max items-start">
+        {tabs.map((tab, index) => {
+          const step = index + 1
+
+          const accessible =
+            tab === 'Verifikasi' ||
+            (tab === 'Usulan' && proposalAccessible) ||
+            (tab === 'Penilaian' && assessmentAccessible) ||
+            (tab === 'Finalisasi' && finalizationAccessible)
+
+          const isCurrent = activeTab === tab
+          const isComplete = step < stageNumber
+
+          let circleClasses =
+            'flex h-9 w-9 items-center justify-center rounded-full border font-mono text-sm font-semibold transition'
+          let labelClasses = 'mt-2 text-xs font-medium transition'
+          let circleStyle = {}
+
+          if (isCurrent) {
+            circleStyle = { backgroundColor: INDIGO, borderColor: INDIGO }
+            circleClasses += ' text-white shadow-sm'
+            labelClasses += ' text-[#0F172A]'
+          } else if (isComplete) {
+            circleStyle = { backgroundColor: GOLD_SOFT, borderColor: GOLD_BORDER, color: GOLD }
+            labelClasses += ' text-slate-600'
+          } else if (accessible) {
+            circleClasses += ' border-slate-400 text-slate-600 hover:border-[#7C3AED] hover:text-[#7C3AED]'
+            labelClasses += ' text-slate-600'
+          } else {
+            circleClasses += ' border-slate-300 text-slate-400 cursor-not-allowed'
+            labelClasses += ' text-slate-400'
+          }
+
+          return (
+            <li key={tab} className="flex flex-1 items-start">
+              <button
+                type="button"
+                disabled={!accessible}
+                onClick={() => onChange(tab)}
+                className="flex flex-col items-center gap-0 px-1"
+              >
+                <span className={circleClasses} style={circleStyle}>
+                  {isComplete ? <CheckIcon className="h-4 w-4" /> : step}
+                </span>
+                <span className={labelClasses}>{tab}</span>
+              </button>
+
+              {index < tabs.length - 1 && (
+                <span
+                  className="mt-[18px] h-px w-10 shrink-0 sm:w-20"
+                  style={{
+                    backgroundColor: isComplete ? GOLD_BORDER : '#CBD5E1',
+                  }}
+                />
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 function VerificationTab({
   internship,
   canVerify,
@@ -450,19 +535,19 @@ function VerificationTab({
 }) {
   return (
     <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
         <SectionHeader
           title="Data Pengajuan Mahasiswa"
           description="Informasi pengajuan yang dikirim mahasiswa."
         />
 
-        <dl className="mt-7 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="mt-7 grid gap-6 rounded-lg bg-[#F8FAFC] p-5 sm:grid-cols-2 lg:grid-cols-3">
           <InfoItem
             label="Nama Mahasiswa"
             value={internship.studentName}
           />
 
-          <InfoItem label="NIM" value={internship.studentId} />
+          <InfoItem label="NIM" value={internship.studentId} mono />
 
           <InfoItem
             label="Program Studi"
@@ -494,8 +579,8 @@ function VerificationTab({
           />
         </dl>
 
-        <div className="mt-8 rounded-2xl bg-slate-50 p-5">
-          <p className="text-sm font-bold text-slate-900">
+        <div className="mt-8 rounded-lg bg-[#F8FAFC] p-5">
+          <p className="text-sm font-semibold text-[#0F172A]">
             Deskripsi Pekerjaan
           </p>
 
@@ -505,8 +590,8 @@ function VerificationTab({
         </div>
       </section>
 
-      <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="font-bold text-slate-900">
+      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
+        <h2 className="font-serif text-lg font-semibold text-[#0F172A]">
           Keputusan Verifikasi
         </h2>
 
@@ -522,14 +607,14 @@ function VerificationTab({
               value={revisionNote}
               onChange={onRevisionNoteChange}
               placeholder="Catatan perbaikan pengajuan."
-              className="mt-6 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              className="mt-6 w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10"
             />
 
             <div className="mt-6 space-y-3">
               <button
                 type="button"
                 onClick={onApprove}
-                className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+                className="w-full rounded-md bg-[#7C3AED] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#6D28D9]"
               >
                 Verifikasi Pengajuan
               </button>
@@ -537,7 +622,7 @@ function VerificationTab({
               <button
                 type="button"
                 onClick={onRequestRevision}
-                className="w-full rounded-xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 hover:bg-red-50"
+                className="w-full rounded-md border border-red-200 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
               >
                 Minta Perbaikan
               </button>
@@ -566,7 +651,7 @@ function ProposalReviewTab({
 
   return (
     <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
         <SectionHeader
           title="Usulan Konversi Mahasiswa"
           description="Periksa aktivitas, CPMK, dan mata kuliah."
@@ -583,8 +668,8 @@ function ProposalReviewTab({
         </div>
       </section>
 
-      <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="font-bold text-slate-900">
+      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
+        <h2 className="font-serif text-lg font-semibold text-[#0F172A]">
           Keputusan Validasi Usulan
         </h2>
 
@@ -595,14 +680,14 @@ function ProposalReviewTab({
               value={revisionNote}
               onChange={onRevisionNoteChange}
               placeholder="Catatan revisi usulan."
-              className="mt-6 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              className="mt-6 w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10"
             />
 
             <div className="mt-6 space-y-3">
               <button
                 type="button"
                 onClick={onApprove}
-                className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+                className="w-full rounded-md bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
               >
                 Setujui Usulan
               </button>
@@ -610,7 +695,7 @@ function ProposalReviewTab({
               <button
                 type="button"
                 onClick={onRequestRevision}
-                className="w-full rounded-xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 hover:bg-red-50"
+                className="w-full rounded-md border border-red-200 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
               >
                 Minta Revisi Usulan
               </button>
@@ -645,7 +730,7 @@ function AssessmentMonitoringTab({ internship }) {
   ]
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 md:p-8">
       <SectionHeader
         title="Monitoring Penilaian"
         description="Pantau penilaian Mitra dan review akademik DPL."
@@ -679,14 +764,14 @@ function AssessmentMonitoringTab({ internship }) {
         />
       </div>
 
-      <div className="mt-8 overflow-x-auto">
+      <div className="mt-8 overflow-x-auto rounded-lg border border-slate-200">
         <table className="w-full min-w-[750px] text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
-              <th className="pb-3 font-semibold">Mata Kuliah</th>
-              <th className="pb-3 font-semibold">Nilai Mitra</th>
-              <th className="pb-3 font-semibold">Nilai DPL</th>
-              <th className="pb-3 font-semibold">Status</th>
+            <tr className="border-b border-slate-200 bg-[#F8FAFC] text-[11px] uppercase tracking-wider text-slate-400">
+              <th className="px-5 py-3 font-semibold">Mata Kuliah</th>
+              <th className="px-5 py-3 font-semibold">Nilai Mitra</th>
+              <th className="px-5 py-3 font-semibold">Nilai DPL</th>
+              <th className="px-5 py-3 font-semibold">Status</th>
             </tr>
           </thead>
 
@@ -707,10 +792,10 @@ function AssessmentMonitoringTab({ internship }) {
               return (
                 <tr
                   key={courseCode}
-                  className="border-b border-slate-100"
+                  className="border-b border-slate-100 last:border-b-0"
                 >
-                  <td className="py-5">
-                    <p className="font-bold text-slate-900">
+                  <td className="px-5 py-5">
+                    <p className="font-mono text-sm font-medium text-[#0F172A]">
                       {courseCode}
                     </p>
 
@@ -719,16 +804,16 @@ function AssessmentMonitoringTab({ internship }) {
                     </p>
                   </td>
 
-                  <td className="py-5 font-bold text-slate-900">
+                  <td className="px-5 py-5 font-semibold text-[#0F172A]">
                     {partnerScore?.score ?? '-'}
                   </td>
 
-                  <td className="py-5 font-bold text-slate-900">
+                  <td className="px-5 py-5 font-semibold text-[#0F172A]">
                     {dplScore?.score ?? '-'}
                   </td>
 
-                  <td className="py-5">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  <td className="px-5 py-5">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                       {dplScore
                         ? 'Lengkap'
                         : partnerScore
@@ -771,19 +856,25 @@ function FinalizationTab({
         }
       : summary
 
+  const weightsBalanced =
+    Number(partnerWeight) + Number(dplWeight) === 100
+
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 md:p-8">
       <SectionHeader
         title="Finalisasi Hasil Konversi"
         description="Atur bobot, periksa nilai, lalu kunci hasil."
       />
 
-      <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
-        <p className="text-sm font-bold text-blue-900">
+      <div
+        className="mt-6 rounded-lg border p-5"
+        style={{ borderColor: GOLD_BORDER, backgroundColor: GOLD_SOFT }}
+      >
+        <p className="text-sm font-semibold" style={{ color: GOLD }}>
           Rumus Nilai Akhir
         </p>
 
-        <p className="mt-2 text-sm leading-6 text-blue-800">
+        <p className="mt-2 font-mono text-sm leading-6 text-slate-600">
           (Nilai Mitra × Bobot Mitra / 100) + (Nilai DPL ×
           Bobot DPL / 100)
         </p>
@@ -812,16 +903,14 @@ function FinalizationTab({
           onChange={onDplWeightChange}
         />
 
-        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <article className="rounded-lg bg-[#F8FAFC] p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             Total Bobot
           </p>
 
           <p
-            className={`mt-3 text-2xl font-bold ${
-              Number(partnerWeight) + Number(dplWeight) === 100
-                ? 'text-emerald-700'
-                : 'text-red-600'
+            className={`mt-3 font-mono text-2xl font-bold ${
+              weightsBalanced ? 'text-emerald-700' : 'text-red-700'
             }`}
           >
             {Number(partnerWeight) + Number(dplWeight)}%
@@ -829,16 +918,16 @@ function FinalizationTab({
         </article>
       </div>
 
-      <div className="mt-8 overflow-x-auto">
+      <div className="mt-8 overflow-x-auto rounded-lg border border-slate-200">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
-              <th className="pb-3 font-semibold">Mata Kuliah</th>
-              <th className="pb-3 font-semibold">SKS</th>
-              <th className="pb-3 font-semibold">Mitra</th>
-              <th className="pb-3 font-semibold">DPL</th>
-              <th className="pb-3 font-semibold">Nilai Akhir</th>
-              <th className="pb-3 font-semibold">Huruf</th>
+            <tr className="border-b border-slate-200 bg-[#F8FAFC] text-[11px] uppercase tracking-wider text-slate-400">
+              <th className="px-5 py-3 font-semibold">Mata Kuliah</th>
+              <th className="px-5 py-3 font-semibold">SKS</th>
+              <th className="px-5 py-3 font-semibold">Mitra</th>
+              <th className="px-5 py-3 font-semibold">DPL</th>
+              <th className="px-5 py-3 font-semibold">Nilai Akhir</th>
+              <th className="px-5 py-3 font-semibold">Huruf</th>
             </tr>
           </thead>
 
@@ -846,10 +935,10 @@ function FinalizationTab({
             {displayedRows.map((row) => (
               <tr
                 key={row.courseCode}
-                className="border-b border-slate-100"
+                className="border-b border-slate-100 last:border-b-0"
               >
-                <td className="py-5">
-                  <p className="font-bold text-slate-900">
+                <td className="px-5 py-5">
+                  <p className="font-mono text-sm font-medium text-[#0F172A]">
                     {row.courseCode}
                   </p>
 
@@ -858,22 +947,25 @@ function FinalizationTab({
                   </p>
                 </td>
 
-                <td className="py-5">{row.credits}</td>
+                <td className="px-5 py-5">{row.credits}</td>
 
-                <td className="py-5 font-semibold">
+                <td className="px-5 py-5 font-semibold">
                   {row.partnerScore ?? '-'}
                 </td>
 
-                <td className="py-5 font-semibold">
+                <td className="px-5 py-5 font-semibold">
                   {row.dplScore ?? '-'}
                 </td>
 
-                <td className="py-5 text-lg font-bold text-indigo-700">
+                <td
+                  className="px-5 py-5 font-serif text-lg font-semibold"
+                  style={{ color: GOLD }}
+                >
                   {row.finalScore ?? '-'}
                 </td>
 
-                <td className="py-5">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 font-bold text-emerald-700">
+                <td className="px-5 py-5">
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     {row.letterGrade}
                   </span>
                 </td>
@@ -905,7 +997,14 @@ function FinalizationTab({
           <button
             type="button"
             onClick={onFinalize}
-            className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white hover:bg-indigo-700"
+            className="rounded-md px-6 py-3 text-sm font-semibold text-white transition"
+            style={{ backgroundColor: INDIGO }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.backgroundColor = INDIGO_DEEP
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.backgroundColor = INDIGO
+            }}
           >
             Finalisasi Hasil Konversi
           </button>
@@ -913,8 +1012,8 @@ function FinalizationTab({
       )}
 
       {finalized && (
-        <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <p className="font-bold text-emerald-900">
+        <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+          <p className="font-semibold text-emerald-900">
             Hasil konversi telah difinalisasi
           </p>
 
@@ -934,12 +1033,15 @@ function ProposalActivityCard({ activity, number }) {
   )
 
   return (
-    <article className="rounded-2xl border border-slate-200 p-5">
-      <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
-        Aktivitas {number}
+    <article className="rounded-xl border border-slate-200 p-5">
+      <p
+        className="font-mono text-[11px] font-semibold uppercase tracking-wider"
+        style={{ color: GOLD }}
+      >
+        Aktivitas {String(number).padStart(2, '0')}
       </p>
 
-      <h3 className="mt-2 font-bold text-slate-900">
+      <h3 className="mt-2 font-serif font-semibold text-[#0F172A]">
         {activity.description}
       </h3>
 
@@ -958,11 +1060,12 @@ function ProposalActivityCard({ activity, number }) {
           return (
             <div
               key={courseCode}
-              className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5"
+              className="rounded-lg border p-5"
+              style={{ borderColor: GOLD_BORDER, backgroundColor: GOLD_SOFT }}
             >
-              <p className="font-bold text-slate-900">
-                {course?.code} · {course?.name} ·{' '}
-                {course?.credits} SKS
+              <p className="font-medium text-[#0F172A]">
+                <span className="font-mono">{course?.code}</span> ·{' '}
+                {course?.name} · {course?.credits} SKS
               </p>
 
               <p className="mt-2 text-sm text-slate-600">
@@ -991,9 +1094,9 @@ function ReviewerStatusCard({
   waitingLabel,
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 p-5">
+    <article className="rounded-xl border border-slate-200 p-5">
       <span
-        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+        className={`rounded-full px-3 py-1 text-xs font-medium ${
           submitted
             ? 'bg-emerald-50 text-emerald-700'
             : 'bg-amber-50 text-amber-700'
@@ -1002,7 +1105,7 @@ function ReviewerStatusCard({
         {submitted ? 'Selesai' : waitingLabel}
       </span>
 
-      <h3 className="mt-4 font-bold text-slate-900">{title}</h3>
+      <h3 className="mt-4 font-serif font-semibold text-[#0F172A]">{title}</h3>
 
       <p className="mt-2 text-sm text-slate-500">
         {reviewer || 'Penilai belum tersedia'}
@@ -1010,7 +1113,8 @@ function ReviewerStatusCard({
 
       <Link
         to={link}
-        className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white"
+        className="mt-5 inline-flex rounded-md px-4 py-2.5 text-sm font-semibold text-white transition"
+        style={{ backgroundColor: INDIGO }}
       >
         Buka Tautan
       </Link>
@@ -1026,7 +1130,7 @@ function WeightField({
 }) {
   return (
     <div>
-      <label className="text-sm font-semibold text-slate-800">
+      <label className="text-sm font-medium text-slate-700">
         {label}
       </label>
 
@@ -1038,7 +1142,7 @@ function WeightField({
           value={value}
           disabled={disabled}
           onChange={onChange}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-10 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-100"
+          className="w-full rounded-md border border-slate-300 px-4 py-3 pr-10 font-mono text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10 disabled:bg-slate-100"
         />
 
         <span className="absolute right-4 top-3 text-sm text-slate-500">
@@ -1052,11 +1156,11 @@ function WeightField({
 function SectionHeader({ title, description }) {
   return (
     <div className="border-b border-slate-100 pb-6">
-      <h2 className="text-lg font-bold text-slate-900">
+      <h2 className="font-serif text-lg font-semibold text-[#0F172A]">
         {title}
       </h2>
 
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-400">
         {description}
       </p>
     </div>
@@ -1065,12 +1169,12 @@ function SectionHeader({ title, description }) {
 
 function SummaryCard({ label, value }) {
   return (
-    <article className="rounded-2xl bg-slate-50 p-5">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+    <article className="rounded-lg bg-[#F8FAFC] p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
         {label}
       </p>
 
-      <p className="mt-3 text-2xl font-bold text-slate-900">
+      <p className="mt-3 font-serif text-2xl font-semibold text-[#0F172A]">
         {value}
       </p>
     </article>
@@ -1079,8 +1183,8 @@ function SummaryCard({ label, value }) {
 
 function DecisionCompleted({ status, note }) {
   return (
-    <div className="mt-5 rounded-2xl bg-slate-50 p-5">
-      <p className="text-sm font-bold text-slate-900">
+    <div className="mt-5 rounded-lg bg-[#F8FAFC] p-5">
+      <p className="text-sm font-semibold text-[#0F172A]">
         Keputusan telah diberikan
       </p>
 
@@ -1097,14 +1201,16 @@ function DecisionCompleted({ status, note }) {
   )
 }
 
-function InfoItem({ label, value }) {
+function InfoItem({ label, value, mono }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <dt className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
         {label}
       </dt>
 
-      <dd className="mt-2 text-sm font-semibold text-slate-900">
+      <dd
+        className={`mt-2 text-sm font-semibold text-[#0F172A] ${mono ? 'font-mono' : ''}`}
+      >
         {value || '-'}
       </dd>
     </div>
@@ -1112,8 +1218,36 @@ function InfoItem({ label, value }) {
 }
 
 function StatusBadge({ status }) {
+  const styles = {
+    DRAFT_PENGAJUAN: 'bg-slate-100 text-slate-600',
+    MENUNGGU_VERIFIKASI: 'bg-amber-50 text-amber-700',
+    PERLU_PERBAIKAN_PENGAJUAN: 'bg-red-50 text-red-700',
+    MAGANG_TERVERIFIKASI: 'bg-emerald-50 text-emerald-700',
+    DRAFT_USULAN: 'text-[#7C3AED]',
+    MENUNGGU_VALIDASI_USULAN: 'bg-amber-50 text-amber-700',
+    PERLU_REVISI_USULAN: 'bg-red-50 text-red-700',
+    USULAN_DISETUJUI: 'bg-emerald-50 text-emerald-700',
+    DRAFT_KLAIM: 'text-[#7C3AED]',
+    MENUNGGU_PENILAIAN_MITRA: 'bg-amber-50 text-amber-700',
+    MENUNGGU_REVIEW_DPL: 'bg-amber-50 text-amber-700',
+    PERLU_REVISI_KLAIM: 'bg-red-50 text-red-700',
+    SIAP_FINALISASI: 'text-[#7C3AED]',
+    SELESAI: 'bg-emerald-50 text-emerald-700',
+  }
+
+  const goldBg = [
+    'DRAFT_USULAN',
+    'DRAFT_KLAIM',
+    'SIAP_FINALISASI',
+  ].includes(status)
+
   return (
-    <span className="w-fit rounded-full bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">
+    <span
+      className={`w-fit rounded-full px-3 py-1.5 text-xs font-medium ${
+        styles[status] || 'bg-slate-100 text-slate-600'
+      }`}
+      style={goldBg ? { backgroundColor: GOLD_SOFT } : undefined}
+    >
       {getStatusLabel(status)}
     </span>
   )
@@ -1125,25 +1259,26 @@ function Toast({ message, onClose }) {
   return (
     <div className="fixed bottom-6 right-6 z-50 w-[calc(100%-3rem)] max-w-sm">
       <div
-        className={`rounded-2xl border px-5 py-4 shadow-xl ${
+        className={`rounded-xl border px-5 py-4 shadow-xl ${
           success
             ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
             : 'border-red-200 bg-red-50 text-red-800'
         }`}
       >
-        <div className="flex justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-bold">
+            <p className="text-sm font-semibold">
               {success ? 'Berhasil' : 'Periksa Kembali'}
             </p>
 
-            <p className="mt-1 text-sm">{message}</p>
+            <p className="mt-1 text-sm leading-5">{message}</p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="text-lg font-bold"
+            className="shrink-0 text-lg font-semibold opacity-60 hover:opacity-100"
+            aria-label="Tutup notifikasi"
           >
             ×
           </button>
@@ -1155,24 +1290,57 @@ function Toast({ message, onClose }) {
 
 function MessagePage({ title, description, backPath }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <h1 className="text-xl font-bold text-slate-900">
+    <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6 font-sans antialiased">
+      <div className="max-w-lg rounded-xl border border-slate-200 bg-white p-8 text-center">
+        <span
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg"
+          style={{ backgroundColor: GOLD_SOFT }}
+        >
+          <ClipboardIcon className="h-5 w-5" style={{ color: GOLD }} />
+        </span>
+
+        <h1 className="mt-5 font-serif text-xl font-semibold text-[#0F172A]">
           {title}
         </h1>
 
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-slate-400">
           {description}
         </p>
 
         <Link
           to={backPath}
-          className="mt-6 inline-flex rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+          className="mt-6 inline-flex rounded-md px-5 py-3 text-sm font-semibold text-white transition"
+          style={{ backgroundColor: INDIGO }}
         >
           Kembali
         </Link>
       </div>
     </main>
+  )
+}
+
+function ClipboardIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" {...props}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 3.5h6M8.5 11.5l2.2 2.2L15.5 9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ArrowLeftIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M19 12H5M5 12l6-6M5 12l6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function CheckIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" {...props}>
+      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
