@@ -722,7 +722,7 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                     </div>
                   </div>
 
-                  <div className="mt-3 border-t border-slate-100 pt-2.5">
+                  <div className="mt-3 border-t border-slate-100 pt-2">
                     {file ? (
                       <div className="flex items-center justify-between gap-2">
                         <div className="truncate">
@@ -744,18 +744,19 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                                 href={fileUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                                title="Buka Dokumen"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#7C3AED] text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
                               >
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Buka PDF
                               </a>
                             )
                           }
                           return (
                             <button
                               type="button"
+                              title="Lihat Dokumen"
                               onClick={() => {
                                 const dummyWindow = window.open("", "_blank")
                                 if (dummyWindow) {
@@ -790,13 +791,11 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                                   `)
                                 }
                               }}
-                              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#7C3AED] text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
                             >
-                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
-                              Lihat Dokumen
                             </button>
                           )
                         })()}
@@ -868,18 +867,19 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                                 href={fileUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                                title="Buka Dokumen"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#7C3AED] text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
                               >
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Buka PDF
                               </a>
                             )
                           }
                           return (
                             <button
                               type="button"
+                              title="Lihat Dokumen"
                               onClick={() => {
                                 const dummyWindow = window.open("", "_blank")
                                 if (dummyWindow) {
@@ -914,13 +914,11 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                                   `)
                                 }
                               }}
-                              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#7C3AED] text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
                             >
-                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
-                              Lihat Dokumen
                             </button>
                           )
                         })()}

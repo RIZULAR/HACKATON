@@ -452,24 +452,7 @@ function Login({ role = 'mahasiswa' }) {
               >
                 {loading ? 'Memproses...' : 'Log In'}
               </button>
-
-              {activeRole === 'mahasiswa' && (
-                <p className="mt-4 text-center text-xs text-slate-500">
-                  Belum punya akun?{' '}
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => {
-                      setIsRegister(true)
-                      setError('')
-                      setSuccessMessage('')
-                    }}
-                    className="font-semibold text-[#7C3AED] hover:underline cursor-pointer disabled:text-slate-400"
-                  >
-                    Daftar Sekarang
-                  </button>
-                </p>
-              )}
+              
             </form>
 
             <div className="mt-6 flex items-center gap-3">
