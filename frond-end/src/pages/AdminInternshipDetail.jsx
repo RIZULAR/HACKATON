@@ -1009,7 +1009,7 @@ function VerificationTab({
         <DocumentViewerSection internship={internship} showSubmissionDocs={true} showClaimDocs={false} />
       </section>
 
-      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
+      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6 sticky top-24">
         <h2 className="font-serif text-lg font-semibold text-[#0F172A]">
           Keputusan Verifikasi
         </h2>
@@ -1115,7 +1115,7 @@ function ProposalReviewTab({
         </div>
       </section>
 
-      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
+      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6 sticky top-24">
         <h2 className="font-serif text-lg font-semibold text-[#0F172A]">
           Keputusan Validasi Usulan
         </h2>

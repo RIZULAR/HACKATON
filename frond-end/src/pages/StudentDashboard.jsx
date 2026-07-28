@@ -158,8 +158,8 @@ function StudentDashboard() {
   return (
     <main className=" bg-slate-50 font-sans antialiased">
       <div className=" grid  lg:grid-cols-[240px_1fr]">
-        {/* LEFT SIDEBAR — white */}
-        <aside className="hidden border-r border-slate-100 bg-white px-6 py-8 lg:flex lg:flex-col">
+        {/* LEFT SIDEBAR — fixed white */}
+        <aside className="hidden border-r border-slate-100 bg-white px-6 py-8 lg:flex lg:flex-col sticky top-0 h-screen overflow-y-auto shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-base font-bold text-white shadow-md shadow-[#7C3AED]/25">
               KM
