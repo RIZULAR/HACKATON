@@ -5,8 +5,9 @@ import {
   getStatusLabel,
   loadInternship,
   saveInternship,
+  getAllInternships,
 } from '../data/internshipStore.js'
-import { fetchInternshipFromSupabase, fetchStatsFromSupabase, isSupabaseConfigured } from '../data/supabaseSync.js'
+import { fetchInternshipFromSupabase, fetchAllInternshipsFromSupabase, fetchStatsFromSupabase, isSupabaseConfigured } from '../data/supabaseSync.js'
 import { CONVERSION_MASTER } from '../data/conversionMaster.js'
 
 const baseProcessSteps = [
@@ -72,29 +73,53 @@ const NAV_ITEMS = [
 ]
 
 function AdminDashboard() {
-  const [internship, setInternship] = useState(() => loadInternship())
+  const [internshipList, setInternshipList] = useState(() => getAllInternships())
+  const internship = internshipList[0] || loadInternship()
   const [stats, setStats] = useState({
-    totalMagang: internship.id ? 1 : 0,
-    waitingVerification: internship.status === 'MENUNGGU_VERIFIKASI' ? 1 : 0,
-    needRevision: internship.status === 'PERLU_PERBAIKAN_PENGAJUAN' ? 1 : 0,
-    verified: internship.status === 'MAGANG_TERVERIFIKASI' ? 1 : 0,
+    totalMagang: internshipList.length || (internship.id ? 1 : 0),
+    waitingVerification: internshipList.filter(i => i.status === 'MENUNGGU_VERIFIKASI').length,
+    needRevision: internshipList.filter(i => i.status === 'PERLU_PERBAIKAN_PENGAJUAN').length,
+    verified: internshipList.filter(i => i.status === 'MAGANG_TERVERIFIKASI').length,
   })
 
   useEffect(() => {
     async function loadData() {
+      const all = getAllInternships()
+      setInternshipList(all)
+      setStats({
+        totalMagang: all.length,
+        waitingVerification: all.filter((i) => i.status === 'MENUNGGU_VERIFIKASI').length,
+        needRevision: all.filter((i) => i.status === 'PERLU_PERBAIKAN_PENGAJUAN').length,
+        verified: all.filter((i) => i.status === 'MAGANG_TERVERIFIKASI').length,
+      })
+
       if (isSupabaseConfigured) {
-        const remoteData = await fetchInternshipFromSupabase()
-        if (remoteData) {
-          setInternship(remoteData)
-          saveInternship(remoteData)
+        try {
+          const remoteList = await fetchAllInternshipsFromSupabase()
+          if (Array.isArray(remoteList) && remoteList.length > 0) {
+            remoteList.forEach((item) => saveInternship(item))
+          }
+        } catch (e) {
+          console.error('Failed to sync remote list:', e)
         }
-        const remoteStats = await fetchStatsFromSupabase()
-        if (remoteStats) {
-          setStats(remoteStats)
-        }
+        const updatedAll = getAllInternships()
+        setInternshipList(updatedAll)
+        setStats({
+          totalMagang: updatedAll.length,
+          waitingVerification: updatedAll.filter((i) => i.status === 'MENUNGGU_VERIFIKASI').length,
+          needRevision: updatedAll.filter((i) => i.status === 'PERLU_PERBAIKAN_PENGAJUAN').length,
+          verified: updatedAll.filter((i) => i.status === 'MAGANG_TERVERIFIKASI').length,
+        })
       }
     }
     loadData()
+
+    window.addEventListener('focus', loadData)
+    window.addEventListener('storage', loadData)
+    return () => {
+      window.removeEventListener('focus', loadData)
+      window.removeEventListener('storage', loadData)
+    }
   }, [])
 
   const hasSubmission = Boolean(internship.id)
@@ -489,12 +514,12 @@ function AdminDashboard() {
               )}
             </div>
 
-            {hasSubmission ? (
+            {internshipList.length > 0 ? (
               <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100">
                 <table className="w-full min-w-[850px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
-                      <th className="px-5 py-3 font-medium">ID Magang</th>
+                      <th className="px-5 py-3 font-medium">ID Magang BIMA</th>
                       <th className="px-5 py-3 font-medium">Mahasiswa</th>
                       <th className="px-5 py-3 font-medium">Mitra</th>
                       <th className="px-5 py-3 font-medium">Periode</th>
@@ -503,36 +528,44 @@ function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td className="px-5 py-5 font-medium text-slate-900">
-                        {internship.id}
-                      </td>
-                      <td className="px-5 py-5">
-                        <p className="font-medium text-slate-900">
-                          {internship.studentName}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {internship.studentId}
-                        </p>
-                      </td>
-                      <td className="px-5 py-5 text-slate-500">
-                        {internship.partnerName}
-                      </td>
-                      <td className="px-5 py-5 text-slate-500">
-                        {periodLabel}
-                      </td>
-                      <td className="px-5 py-5">
-                        <StatusBadge status={internship.status} />
-                      </td>
-                      <td className="px-5 py-5 text-right">
-                        <Link
-                          to={detailPath}
-                          className="font-medium text-[#7C3AED] hover:text-[#6D28D9]"
-                        >
-                          Detail
-                        </Link>
-                      </td>
-                    </tr>
+                    {internshipList.map((item) => (
+                      <tr key={item.id || item.studentId} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                        <td className="px-5 py-5 font-medium text-slate-900">
+                          {item.bimaId ? (
+                            <span className="font-mono font-semibold text-[#7C3AED]">{item.bimaId}</span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                              Belum Ada ID
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-5">
+                          <p className="font-medium text-slate-900">
+                            {item.studentName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {item.studentId}
+                          </p>
+                        </td>
+                        <td className="px-5 py-5 text-slate-500">
+                          {item.partnerName || '-'}
+                        </td>
+                        <td className="px-5 py-5 text-slate-500">
+                          {formatDateRange(item.startDate, item.endDate)}
+                        </td>
+                        <td className="px-5 py-5">
+                          <StatusBadge status={item.status} />
+                        </td>
+                        <td className="px-5 py-5 text-right">
+                          <Link
+                            to={`/admin/magang/${item.id || item.studentId || 1}`}
+                            className="font-medium text-[#7C3AED] hover:text-[#6D28D9]"
+                          >
+                            Detail
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

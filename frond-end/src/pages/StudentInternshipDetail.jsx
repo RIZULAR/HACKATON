@@ -11,6 +11,7 @@ import {
   getStatusLabel,
   loadInternship,
   saveInternship,
+  generateUniqueInternshipId,
 } from '../data/internshipStore.js'
 import {
   fetchInternshipFromSupabase,
@@ -221,43 +222,57 @@ function StudentInternshipDetail() {
 
   useEffect(() => {
     async function loadData() {
+      const savedSession = localStorage.getItem('active_user_session')
+      let localUser = null
+      if (savedSession) {
+        try { localUser = JSON.parse(savedSession) } catch (e) { console.error(e) }
+      }
+
       if (isSupabaseConfigured) {
         const userProfile = await getLoggedInUserProfile()
+        const activeProfile = userProfile || localUser
 
         if (id !== 'baru') {
           const remoteData = await fetchInternshipFromSupabase(id)
           if (remoteData) {
             const merged = {
               ...remoteData,
-              studentName: userProfile?.full_name || remoteData.studentName,
-              studentId: userProfile?.nim || remoteData.studentId,
-              studyProgram: userProfile?.study_program || remoteData.studyProgram,
-              studentEmail: userProfile?.email || remoteData.studentEmail,
+              studentName: activeProfile?.full_name || activeProfile?.fullName || remoteData.studentName,
+              studentId: activeProfile?.nim || remoteData.studentId,
+              studyProgram: activeProfile?.study_program || activeProfile?.studyProgram || remoteData.studyProgram,
+              studentEmail: activeProfile?.email || remoteData.studentEmail,
             }
             setForm(merged)
             saveInternship(merged)
             setActiveTab(getInitialTab(merged.status))
           } else {
-            // Mock ID or nonexistent remote application, clear cache and prefill user details
             const emptyForm = {
               ...getEmptyInternship(),
-              studentName: userProfile?.full_name || 'Nadia Putri Ramadhani',
-              studentId: userProfile?.nim || '22.11.4321',
-              studyProgram: userProfile?.study_program || 'Informatika',
-              studentEmail: userProfile?.email || 'nadia.demo@mahasiswa.ac.id',
+              studentName: activeProfile?.full_name || activeProfile?.fullName || 'Nadia Putri Ramadhani',
+              studentId: activeProfile?.nim || '22.11.4321',
+              studyProgram: activeProfile?.study_program || activeProfile?.studyProgram || 'Informatika',
+              studentEmail: activeProfile?.email || 'nadia.demo@mahasiswa.ac.id',
             }
             setForm(emptyForm)
             saveInternship(emptyForm)
           }
-        } else if (userProfile) {
+        } else if (activeProfile) {
           setForm((prev) => ({
             ...prev,
-            studentName: userProfile.full_name || prev.studentName,
-            studentId: userProfile.nim || prev.studentId,
-            studyProgram: userProfile.study_program || prev.studyProgram,
-            studentEmail: userProfile.email || prev.studentEmail,
+            studentName: activeProfile.full_name || activeProfile.fullName || prev.studentName,
+            studentId: activeProfile.nim || prev.studentId,
+            studyProgram: activeProfile.study_program || activeProfile.studyProgram || prev.studyProgram,
+            studentEmail: activeProfile.email || prev.studentEmail,
           }))
         }
+      } else if (localUser) {
+        setForm((prev) => ({
+          ...prev,
+          studentName: localUser.full_name || localUser.fullName || prev.studentName,
+          studentId: localUser.nim || prev.studentId,
+          studyProgram: localUser.study_program || localUser.studyProgram || prev.studyProgram,
+          studentEmail: localUser.email || prev.studentEmail,
+        }))
       }
     }
     loadData()
@@ -275,6 +290,42 @@ function StudentInternshipDetail() {
   const [proposalErrors, setProposalErrors] = useState({})
   const [claimErrors, setClaimErrors] = useState({})
   const [message, setMessage] = useState('')
+
+  const [proposalFileName, setProposalFileName] = useState('')
+  const [acceptanceFileName, setAcceptanceFileName] = useState('')
+  const [proposalProgress, setProposalProgress] = useState(0)
+  const [acceptanceProgress, setAcceptanceProgress] = useState(0)
+
+  function handleFileUpload(type, event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const mockDoc = {
+      name: file.name,
+      size: `${(file.size / 1024).toFixed(1)} KB`,
+      url: URL.createObjectURL(file),
+      type: file.type,
+      uploadedAt: new Date().toISOString(),
+    }
+
+    if (type === 'proposal') {
+      setProposalFileName(file.name)
+      setProposalProgress(100)
+      setForm((prev) => ({
+        ...prev,
+        proposalDocument: mockDoc,
+        proposalDoc: mockDoc,
+      }))
+    } else if (type === 'acceptance') {
+      setAcceptanceFileName(file.name)
+      setAcceptanceProgress(100)
+      setForm((prev) => ({
+        ...prev,
+        acceptanceDocument: mockDoc,
+        acceptanceDoc: mockDoc,
+      }))
+    }
+  }
 
   const submissionEditable =
     !form.id ||
@@ -394,16 +445,14 @@ function StudentInternshipDetail() {
       updatedAt: currentTime,
     }
 
+    if (!draftData.id || draftData.id === 'MAG-2026-001') {
+      draftData.id = generateUniqueInternshipId(draftData.studentId)
+    }
+
     if (isSupabaseConfigured) {
       const res = await saveInternshipToSupabase(draftData)
-      if (!res.success) {
-        showMessage(`Gagal menyimpan draf ke database Cloud: ${res.error}`)
-        return
-      }
-      draftData.id = res.id
-    } else {
-      if (!draftData.id) {
-        draftData.id = 'MAG-2026-001'
+      if (res.success && res.id) {
+        draftData.id = res.id
       }
     }
 
@@ -430,8 +479,14 @@ function StudentInternshipDetail() {
     const currentTime = new Date().toISOString()
     const originalId = form.id || ''
 
+    const activeSession = JSON.parse(localStorage.getItem('active_user_session') || 'null')
+    const currentNim = activeSession?.nim || form.studentId || '20.11.5543'
+
     const submittedData = {
       ...form,
+      studentId: currentNim,
+      studentName: activeSession?.full_name || form.studentName,
+      studentEmail: activeSession?.email || form.studentEmail,
       id: originalId,
       status: 'MENUNGGU_VERIFIKASI',
       createdAt: form.createdAt || currentTime,
@@ -439,16 +494,15 @@ function StudentInternshipDetail() {
       submittedAt: currentTime,
     }
 
+    if (!submittedData.id || submittedData.id === 'MAG-2026-001') {
+      submittedData.id = `APP-${currentNim.replace(/\D/g, '').slice(-4) || '5543'}`
+    }
+    submittedData.bimaId = form.bimaId || ''
+
     if (isSupabaseConfigured) {
       const res = await saveInternshipToSupabase(submittedData)
-      if (!res.success) {
-        showMessage(`Pengajuan gagal dikirim ke Cloud Database: ${res.error}`)
-        return
-      }
-      submittedData.id = res.id
-    } else {
-      if (!submittedData.id) {
-        submittedData.id = 'MAG-2026-001'
+      if (res.success && res.id) {
+        submittedData.id = res.id
       }
     }
 
@@ -820,6 +874,65 @@ function StudentInternshipDetail() {
     setMessage('')
   }
 
+  function handleMainDocumentChange(docType, event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg']
+    if (!allowedTypes.includes(file.type)) {
+      showMessage('Dokumen hanya boleh berupa PDF, JPG, atau PNG.')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      showMessage('Ukuran dokumen maksimal 2 MB.')
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      setForm((currentForm) => ({
+        ...currentForm,
+        claim: {
+          ...currentForm.claim,
+          mainDocuments: {
+            ...(currentForm.claim?.mainDocuments || {}),
+            [docType]: {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              dataUrl: reader.result,
+            },
+          },
+        },
+      }))
+
+      setClaimErrors((currentErrors) => ({
+        ...currentErrors,
+        [`mainDocs.${docType}`]: '',
+      }))
+
+      showMessage('Dokumen berhasil diunggah.')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function handleRemoveMainDocument(docType) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      claim: {
+        ...currentForm.claim,
+        mainDocuments: {
+          ...(currentForm.claim?.mainDocuments || {}),
+          [docType]: null,
+        },
+      },
+    }))
+    setMessage('')
+  }
+
   function claimHasDifference(activity) {
     const descriptionDifferent =
       activity.actualDescription.trim().toLowerCase() !==
@@ -834,6 +947,17 @@ function StudentInternshipDetail() {
 
   function validateClaim() {
     const nextErrors = {}
+
+    const mainDocs = form.claim?.mainDocuments || {}
+    if (!mainDocs.logbook) {
+      nextErrors['mainDocs.logbook'] = 'Logbook magang wajib diunggah.'
+    }
+    if (!mainDocs.report) {
+      nextErrors['mainDocs.report'] = 'Laporan akhir magang wajib diunggah.'
+    }
+    if (!mainDocs.certificate) {
+      nextErrors['mainDocs.certificate'] = 'Sertifikat selesai magang wajib diunggah.'
+    }
 
     if (form.claim.activities.length === 0) {
       nextErrors.activities =
@@ -1129,6 +1253,8 @@ function StudentInternshipDetail() {
                 onNoteChange={handleClaimNoteChange}
                 onEvidenceChange={handleEvidenceChange}
                 onRemoveEvidence={handleRemoveEvidence}
+                onMainDocChange={handleMainDocumentChange}
+                onRemoveMainDoc={handleRemoveMainDocument}
                 onSaveDraft={handleSaveClaimDraft}
                 onSubmit={handleSubmitClaim}
               />
@@ -1370,7 +1496,7 @@ function SubmissionTab({
               <div className="mt-5 grid gap-5 md:grid-cols-2">
                 {form.bimaId && (
                   <FormField
-                    label="ID Magang BIMA"
+                    label="Kode Registrasi / ID Magang BIMA"
                     name="bimaId"
                     value={form.bimaId}
                     disabled={true}
@@ -1437,10 +1563,30 @@ function SubmissionTab({
                   onChange={onChange}
                 />
                 <FormField
+                  label="Email Pembimbing Mitra"
+                  name="partnerEmail"
+                  type="email"
+                  placeholder="supervisor.mitra@company.com"
+                  value={form.partnerEmail}
+                  error={errors.partnerEmail}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+                <FormField
                   label="Nama Dosen DPL"
                   name="dplName"
                   value={form.dplName}
                   error={errors.dplName}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+                <FormField
+                  label="Email Dosen DPL"
+                  name="dplEmail"
+                  type="email"
+                  placeholder="dpl.ade@amikom.ac.id"
+                  value={form.dplEmail}
+                  error={errors.dplEmail}
                   disabled={!editable}
                   onChange={onChange}
                 />
@@ -1735,6 +1881,138 @@ function ProposalTab({
   )
 }
 
+function MainDocumentsSection({ mainDocuments = {}, errors = {}, editable, onUpload, onRemove }) {
+  const docConfig = [
+    {
+      id: 'logbook',
+      title: 'Logbook Magang',
+      required: true,
+      description: 'Rekap catatan kehadiran & kegiatan harian magang.',
+      icon: '📓',
+    },
+    {
+      id: 'report',
+      title: 'Laporan Magang',
+      required: true,
+      description: 'Laporan resmi hasil pelaksanaan magang.',
+      icon: '📄',
+    },
+    {
+      id: 'certificate',
+      title: 'Sertifikat Selesai Magang',
+      required: true,
+      description: 'Surat / Sertifikat keterangan selesai magang dari Mitra.',
+      icon: '📜',
+    },
+    {
+      id: 'supporting',
+      title: 'Dokumen Pendukung',
+      required: false,
+      description: 'Dokumen tambahan/lampiran pendukung (Opsional).',
+      icon: '📎',
+    },
+  ]
+
+  return (
+    <div className="mt-8 border-t border-slate-100 pt-7">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Dokumen Utama Klaim Magang</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Unggah berkas resmi sebagai syarat validasi DPL dan penilaian Mitra. (PDF/JPG/PNG, Maks. 2MB)
+          </p>
+        </div>
+        <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-[#7C3AED]">
+          3 Berkas Wajib
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {docConfig.map((doc) => {
+          const uploadedFile = mainDocuments[doc.id]
+          const errorMsg = errors[`mainDocs.${doc.id}`]
+
+          return (
+            <div
+              key={doc.id}
+              className={`flex flex-col justify-between rounded-2xl border p-4 transition-all duration-200 ${
+                uploadedFile
+                  ? 'border-emerald-200 bg-emerald-50/40 shadow-sm'
+                  : errorMsg
+                  ? 'border-red-300 bg-red-50/30'
+                  : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-sm'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{doc.icon}</span>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      {doc.title}
+                      {doc.required ? <span className="ml-1 text-red-500">*</span> : <span className="ml-1 text-xs font-normal text-slate-400">(Opsional)</span>}
+                    </h4>
+                  </div>
+                  {uploadedFile ? (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Tersimpan
+                    </span>
+                  ) : doc.required ? (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+                      Wajib
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">{doc.description}</p>
+              </div>
+
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                {uploadedFile ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate">
+                      <p className="truncate text-xs font-bold text-slate-800">{uploadedFile.name}</p>
+                      <p className="text-[10px] text-slate-500">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <a
+                        href={uploadedFile.dataUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                      >
+                        Buka Dokumen
+                      </a>
+                      {editable && (
+                        <button
+                          type="button"
+                          onClick={() => onRemove(doc.id)}
+                          className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 cursor-pointer"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      disabled={!editable}
+                      onChange={(e) => onUpload(doc.id, e)}
+                      className="w-full text-xs text-slate-500 file:mr-3 file:rounded-xl file:border-0 file:bg-[#7C3AED] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-[#6D28D9] disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    {errorMsg && <p className="mt-1 text-xs font-medium text-red-600">{errorMsg}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ClaimTab({
   form,
   errors,
@@ -1744,6 +2022,8 @@ function ClaimTab({
   onNoteChange,
   onEvidenceChange,
   onRemoveEvidence,
+  onMainDocChange,
+  onRemoveMainDoc,
   onSaveDraft,
   onSubmit,
 }) {
@@ -1769,22 +2049,34 @@ function ClaimTab({
         />
       )}
 
-      <div className="mt-6 space-y-6">
-        {form.claim.activities.map(
-          (activity, index) => (
-            <ClaimActivityCard
-              key={activity.id}
-              activity={activity}
-              number={index + 1}
-              errors={errors}
-              editable={editable}
-              hasDifference={hasDifference(activity)}
-              onChange={onChange}
-              onEvidenceChange={onEvidenceChange}
-              onRemoveEvidence={onRemoveEvidence}
-            />
-          ),
-        )}
+      {/* Dokumen Utama Klaim (Logbook, Laporan, Sertifikat, Dokumen Pendukung) */}
+      <MainDocumentsSection
+        mainDocuments={form.claim.mainDocuments}
+        errors={errors}
+        editable={editable}
+        onUpload={onMainDocChange}
+        onRemove={onRemoveMainDoc}
+      />
+
+      <div className="mt-8 border-t border-slate-100 pt-7">
+        <h3 className="text-base font-bold text-slate-900 mb-4">Realisasi & Bukti Aktivitas per CPMK</h3>
+        <div className="space-y-6">
+          {form.claim.activities.map(
+            (activity, index) => (
+              <ClaimActivityCard
+                key={activity.id}
+                activity={activity}
+                number={index + 1}
+                errors={errors}
+                editable={editable}
+                hasDifference={hasDifference(activity)}
+                onChange={onChange}
+                onEvidenceChange={onEvidenceChange}
+                onRemoveEvidence={onRemoveEvidence}
+              />
+            ),
+          )}
+        </div>
       </div>
 
       <div className="mt-8 border-t border-slate-100 pt-7">

@@ -13,11 +13,16 @@ import {
   getStatusLabel,
   loadInternship,
   saveInternship,
+  getAllInternships,
+  generateUniqueInternshipId,
+  MITRA_DEMO_TOKEN,
+  DPL_DEMO_TOKEN,
 } from '../data/internshipStore.js'
 import {
   fetchInternshipFromSupabase,
   saveInternshipToSupabase,
   isSupabaseConfigured,
+  sendReviewEmail,
 } from '../data/supabaseSync.js'
 
 // ---------------------------------------------------------------------------
@@ -78,9 +83,22 @@ function getInitialTab(status) {
   return 'Verifikasi'
 }
 
+function generateBimaId(studentId = '') {
+  return generateUniqueInternshipId(studentId)
+}
+
+function incrementBimaCounter() {
+  const counter = parseInt(localStorage.getItem('magista_bima_counter') || '1', 10)
+  localStorage.setItem('magista_bima_counter', String(counter + 1))
+}
+
 function AdminInternshipDetail() {
   const { id } = useParams()
-  const initialInternship = loadInternship()
+  const initialInternship = (() => {
+    const all = getAllInternships()
+    const found = all.find((item) => item.id === id || item.studentId === id)
+    return found || loadInternship(id)
+  })()
 
   const [internship, setInternship] = useState(initialInternship)
   const [activeTab, setActiveTab] = useState(() =>
@@ -112,7 +130,7 @@ function AdminInternshipDetail() {
         if (remoteData) {
           setInternship(remoteData)
           saveInternship(remoteData)
-          setBimaId(remoteData.bimaId || '')
+          setBimaId(remoteData.bimaId || generateBimaId())
           setSubmissionRevisionNote(remoteData.revisionNote || '')
           setProposalRevisionNote(remoteData.proposal?.revisionNote || '')
           setPartnerWeight(remoteData.gradeSettings?.partnerWeight ?? 60)
@@ -184,15 +202,16 @@ function AdminInternshipDetail() {
   }
 
   function handleApproveSubmission() {
-    if (!bimaId.trim()) {
-      showMessage('ID Magang BIMA wajib diisi untuk melakukan verifikasi.')
-      return
+    let finalBimaId = bimaId.trim()
+    if (!finalBimaId) {
+      finalBimaId = generateBimaId(internship.studentId)
+      setBimaId(finalBimaId)
     }
 
     const updatedData = {
       ...internship,
       status: 'MAGANG_TERVERIFIKASI',
-      bimaId: bimaId.trim(),
+      bimaId: finalBimaId,
       revisionNote: '',
       updatedAt: new Date().toISOString(),
     }
@@ -202,13 +221,37 @@ function AdminInternshipDetail() {
       return
     }
 
+    if (bimaId.startsWith('MAG-')) {
+      incrementBimaCounter()
+    }
+
     if (isSupabaseConfigured) {
       saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
     }
 
     setInternship(updatedData)
     setSubmissionRevisionNote('')
-    showMessage('Pengajuan berhasil diverifikasi.')
+
+    sendReviewEmail({
+      type: 'VERIFICATION_SUCCESS',
+      recipientEmail: updatedData.studentEmail || 'albarnaga123@gmail.com',
+      recipientName: updatedData.studentName,
+      studentName: updatedData.studentName,
+      subject: `[MAGISTA] Pengajuan Magang Diverifikasi (${finalBimaId})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background-color: #ffffff;">
+          <h2 style="color: #7C3AED; font-size: 20px;">Selamat! Pengajuan Magang Terverifikasi 🎉</h2>
+          <p style="color: #334155; font-size: 14px;">Halo <strong>${updatedData.studentName}</strong>,</p>
+          <p style="color: #334155; font-size: 14px;">Pengajuan magang Anda di <strong>${updatedData.partnerName || 'Mitra'}</strong> telah berhasil diverifikasi oleh Admin Prodi dengan Kode Registrasi BIMA Resmi:</p>
+          <div style="margin: 20px 0; padding: 16px; background-color: #F3E8FF; border-radius: 8px; text-align: center;">
+            <span style="font-family: monospace; font-size: 20px; font-weight: bold; color: #7C3AED;">${finalBimaId}</span>
+          </div>
+          <p style="color: #64748B; font-size: 13px;">Anda dapat melanjutkan ke tahap penyusunan usulan mata kuliah konversi di dasbor mahasiswa.</p>
+        </div>
+      `
+    }).catch(err => console.error("Email send failed:", err))
+
+    showMessage(`Pengajuan berhasil diverifikasi. Email notifikasi terkirim dengan ID BIMA ${finalBimaId}.`)
   }
 
   function handleRequestSubmissionRevision() {
@@ -578,6 +621,226 @@ function StageTracker({
   )
 }
 
+function DocumentViewerSection({ internship, showSubmissionDocs = true, showClaimDocs = false }) {
+  const proposalDoc = internship.proposalDocument || internship.proposalDoc || {
+    name: 'Proposal_Magang_Mahasiswa.pdf',
+    size: 1250000,
+    url: '#',
+  }
+  const acceptanceDoc = internship.acceptanceDocument || internship.acceptanceDoc || {
+    name: 'LoA_Diterima_Magang_Mitra.pdf',
+    size: 890000,
+    url: '#',
+  }
+  const mainDocs = internship.claim?.mainDocuments || {}
+
+  const submissionDocs = [
+    {
+      title: 'Proposal Magang (ttd Kaprodi)',
+      doc: proposalDoc,
+      icon: '📄',
+      required: true,
+    },
+    {
+      title: 'Bukti Diterima Magang / LoA',
+      doc: acceptanceDoc,
+      icon: '📜',
+      required: true,
+    },
+  ]
+
+  const claimDocs = [
+    {
+      title: 'Logbook Magang',
+      doc: mainDocs.logbook,
+      icon: '📓',
+    },
+    {
+      title: 'Laporan Akhir Magang',
+      doc: mainDocs.report,
+      icon: '📄',
+    },
+    {
+      title: 'Sertifikat Selesai Magang',
+      doc: mainDocs.certificate,
+      icon: '🎓',
+    },
+    {
+      title: 'Dokumen Pendukung',
+      doc: mainDocs.supporting,
+      icon: '📎',
+    },
+  ]
+
+  return (
+    <div className="mt-8 border-t border-slate-200 pt-6 space-y-6">
+      {/* Dokumen Pengajuan (Tahap 1) */}
+      {showSubmissionDocs && (
+        <div>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-serif text-lg font-semibold text-[#0F172A]">Dokumen Pengajuan Magang</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Berkas wajib yang diunggah mahasiswa saat pendaftaran magang.
+              </p>
+            </div>
+            <span className="rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+              2 Berkas Pengajuan
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {submissionDocs.map((item, idx) => {
+              const file = item.doc
+
+              return (
+                <div
+                  key={idx}
+                  className={`flex flex-col justify-between rounded-xl border p-4 transition ${
+                    file
+                      ? 'border-emerald-200 bg-emerald-50/40 shadow-sm'
+                      : 'border-amber-200 bg-amber-50/30'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{item.icon}</span>
+                        <h4 className="text-xs font-bold text-slate-900">
+                          {item.title} <span className="text-red-500">*</span>
+                        </h4>
+                      </div>
+                      {file ? (
+                        <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                          Tersedia
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                          Belum Diunggah
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 border-t border-slate-100 pt-2.5">
+                    {file ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="truncate">
+                          <p className="truncate text-xs font-semibold text-slate-800">
+                            {file.name || 'Dokumen.pdf'}
+                          </p>
+                          {file.size && (
+                            <p className="text-[10px] text-slate-500">
+                              {(file.size / 1024).toFixed(1)} KB
+                            </p>
+                          )}
+                        </div>
+
+                        {file.dataUrl || file.fileUrl ? (
+                          <a
+                            href={file.dataUrl || file.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6D28D9]"
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            Buka PDF
+                          </a>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-500">Berkas Terlampir</span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs italic text-amber-700">Mahasiswa belum melampirkan file ini.</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Dokumen Klaim Konversi (Tahap 3 - Jika sudah ada / diizinkan) */}
+      {showClaimDocs && (
+        <div>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-serif text-lg font-semibold text-[#0F172A]">Dokumen Klaim Konversi</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Berkas laporan, logbook, dan sertifikat pasca-magang.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {claimDocs.map((item, idx) => {
+              const file = item.doc
+
+              return (
+                <div
+                  key={idx}
+                  className={`flex flex-col justify-between rounded-xl border p-4 transition ${
+                    file
+                      ? 'border-emerald-200 bg-emerald-50/40 shadow-sm'
+                      : 'border-slate-200 bg-[#F8FAFC]'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{item.icon}</span>
+                        <h4 className="text-xs font-bold text-slate-900">{item.title}</h4>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 border-t border-slate-100 pt-2.5">
+                    {file ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="truncate">
+                          <p className="truncate text-xs font-semibold text-slate-800">
+                            {file.name || 'Dokumen.pdf'}
+                          </p>
+                          {file.size && (
+                            <p className="text-[10px] text-slate-500">
+                              {(file.size / 1024).toFixed(1)} KB
+                            </p>
+                          )}
+                        </div>
+
+                        {file.dataUrl || file.fileUrl ? (
+                          <a
+                            href={file.dataUrl || file.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6D28D9]"
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            Buka PDF
+                          </a>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-500">Berkas Terlampir</span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs italic text-slate-400">Belum diunggah di Tahap Klaim.</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function VerificationTab({
   internship,
   canVerify,
@@ -643,6 +906,9 @@ function VerificationTab({
             {internship.description}
           </p>
         </div>
+
+        {/* Dokumen PDF Pengajuan Mahasiswa (Tahap 1) */}
+        <DocumentViewerSection internship={internship} showSubmissionDocs={true} showClaimDocs={false} />
       </section>
 
       <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
@@ -658,15 +924,29 @@ function VerificationTab({
             </p>
 
             <div className="mt-4">
-              <label className="text-xs font-semibold text-[#0F172A]">
-                Kode Registrasi / ID Magang BIMA*
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-[#0F172A]">
+                  Kode Registrasi / ID Magang BIMA*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onBimaIdChange(generateBimaId(internship.studentId))}
+                  className="text-[11px] font-semibold text-[#7C3AED] hover:text-[#6D28D9] flex items-center gap-1 cursor-pointer hover:underline"
+                >
+                  ⚡ Generate ID Otomatis
+                </button>
+              </div>
               <input
                 type="text"
+                readOnly
+                onClick={() => {
+                  if (!bimaId) {
+                    onBimaIdChange(generateBimaId(internship.studentId))
+                  }
+                }}
                 value={bimaId}
-                onChange={(e) => onBimaIdChange(e.target.value)}
-                placeholder="Masukkan ID Magang BIMA (cth: BIMA-2026-98765)"
-                className="mt-1.5 w-full rounded-md border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10"
+                placeholder="Klik 'Generate ID Otomatis' di atas untuk membuat ID BIMA..."
+                className="mt-1.5 w-full rounded-md border border-slate-300 px-4 py-2.5 text-sm font-mono outline-none bg-slate-100/70 text-slate-700 cursor-pointer select-none"
               />
             </div>
 
@@ -781,7 +1061,7 @@ function ProposalReviewTab({
   )
 }
 
-function AssessmentMonitoringTab({ internship }) {
+function AssessmentMonitoringTab({ internship, onSendMessage }) {
   const partnerSubmitted = Boolean(
     internship.partnerAssessment?.submittedAt,
   )
@@ -798,6 +1078,10 @@ function AssessmentMonitoringTab({ internship }) {
     ),
   ]
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const mitraTokenUrl = `${origin}/mitra/${internship.partnerToken || MITRA_DEMO_TOKEN}`
+  const dplTokenUrl = `${origin}/dpl/${internship.dplToken || DPL_DEMO_TOKEN}`
+
   return (
     <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 md:p-8">
       <SectionHeader
@@ -812,8 +1096,13 @@ function AssessmentMonitoringTab({ internship }) {
             internship.partnerAssessment?.reviewerName ||
             internship.partnerSupervisor
           }
+          recipientEmail={internship.partnerEmail || 'supervisor.mitra@company.com'}
           submitted={partnerSubmitted}
           waitingLabel="Menunggu Penilaian Mitra"
+          tokenUrl={mitraTokenUrl}
+          role="Mitra Industri"
+          studentName={internship.studentName}
+          onSendMessage={onSendMessage}
         />
 
         <ReviewerStatusCard
@@ -822,12 +1111,17 @@ function AssessmentMonitoringTab({ internship }) {
             internship.dplReview?.reviewerName ||
             internship.dplName
           }
+          recipientEmail={internship.dplEmail || 'dpl.ade@amikom.ac.id'}
           submitted={dplSubmitted}
           waitingLabel={
             partnerSubmitted
               ? 'Menunggu Review DPL'
               : 'Menunggu Nilai Mitra'
           }
+          tokenUrl={dplTokenUrl}
+          role="Dosen Pembimbing Lapangan"
+          studentName={internship.studentName}
+          onSendMessage={onSendMessage}
         />
       </div>
 
@@ -894,6 +1188,9 @@ function AssessmentMonitoringTab({ internship }) {
           </tbody>
         </table>
       </div>
+
+      {/* Dokumen PDF Klaim (Logbook, Laporan, Sertifikat) */}
+      <DocumentViewerSection internship={internship} showSubmissionDocs={false} showClaimDocs={true} />
     </section>
   )
 }
@@ -1156,26 +1453,107 @@ function ProposalActivityCard({ activity, number }) {
 function ReviewerStatusCard({
   title,
   reviewer,
+  recipientEmail,
   submitted,
   waitingLabel,
+  tokenUrl,
+  role,
+  studentName,
+  onSendMessage,
 }) {
+  const defaultEmail = recipientEmail || (role === 'Mitra Industri' ? 'supervisor.mitra@company.com' : 'dpl.ade@amikom.ac.id')
+  const [targetEmail, setTargetEmail] = useState(defaultEmail)
+  const [sending, setSending] = useState(false)
+  const [lastSent, setLastSent] = useState(null)
+
+  const handleSendEmail = async () => {
+    setSending(true)
+    const emailToUse = targetEmail || defaultEmail
+
+    const res = await sendReviewEmail({
+      type: role === 'Mitra Industri' ? 'mitra_assessment' : 'dpl_proposal_review',
+      recipientEmail: emailToUse,
+      recipientName: reviewer || role,
+      studentName: studentName || 'Mahasiswa',
+      reviewUrl: tokenUrl,
+    })
+
+    setSending(false)
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    setLastSent(timeStr)
+
+    if (onSendMessage) {
+      onSendMessage(`📧 Email notifikasi link token berhasil dikirimkan ke ${emailToUse}`)
+    }
+  }
+
   return (
-    <article className="rounded-xl border border-slate-200 p-5">
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-medium ${
-          submitted
-            ? 'bg-emerald-50 text-emerald-700'
-            : 'bg-amber-50 text-amber-700'
-        }`}
-      >
-        {submitted ? 'Selesai' : waitingLabel}
-      </span>
+    <article className="rounded-xl border border-slate-200 p-5 bg-[#F8FAFC]/50 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-serif font-semibold text-[#0F172A]">{title}</h3>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              submitted
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            }`}
+          >
+            {submitted ? '✓ Selesai' : waitingLabel}
+          </span>
+        </div>
 
-      <h3 className="mt-4 font-serif font-semibold text-[#0F172A]">{title}</h3>
+        <p className="mt-2 text-sm font-semibold text-slate-800">
+          {reviewer || 'Penilai belum ditentukan'}
+        </p>
 
-      <p className="mt-2 text-sm text-slate-500">
-        {reviewer || 'Penilai belum tersedia'}
-      </p>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Email Tujuan:</span>
+          <input
+            type="email"
+            value={targetEmail}
+            onChange={(e) => setTargetEmail(e.target.value)}
+            placeholder="nama@email.com"
+            className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-mono text-slate-700 outline-none focus:border-[#7C3AED]"
+          />
+        </div>
+
+        {tokenUrl && (
+          <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2.5">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              Tautan Akses Token ({role || 'Penilai'})
+            </p>
+            <p className="mt-1 font-mono text-xs text-slate-600 truncate bg-slate-50 p-1.5 rounded border border-slate-100 select-all">
+              {tokenUrl}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {tokenUrl && (
+        <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={handleSendEmail}
+            disabled={sending}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#7C3AED] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6D28D9] disabled:opacity-50 cursor-pointer"
+          >
+            {sending ? (
+              <span>Mengirim Email...</span>
+            ) : (
+              <>
+                <span>📧</span>
+                <span>Kirim Link Token via Email</span>
+              </>
+            )}
+          </button>
+          {lastSent && (
+            <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+              Terkirim {lastSent}
+            </span>
+          )}
+        </div>
+      )}
     </article>
   )
 }

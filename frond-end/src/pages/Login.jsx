@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { loginWithSupabase, isSupabaseConfigured, registerStudentWithSupabase } from '../data/supabaseSync.js'
+import { loadInternship, saveInternship } from '../data/internshipStore.js'
 
 function Login({ role = 'mahasiswa' }) {
   const navigate = useNavigate()
@@ -81,16 +82,45 @@ function Login({ role = 'mahasiswa' }) {
     setLoading(true)
     try {
       if (isSupabaseConfigured) {
-        const res = await loginWithSupabase(username, password)
-        if (!res.success) {
-          const isDemoAccount = ['22.11.4321', 'admin.prodi', 'kaprodi.if'].includes(username)
-          if (!isDemoAccount) {
-            setError(res.error || 'NIM/Email atau password salah.')
-            setLoading(false)
-            return
-          }
-          console.warn(`⚠️ Supabase Auth failed for demo account. Using local simulation...`)
+        await loginWithSupabase(username, password).catch((err) => {
+          console.warn('Supabase auth fallback:', err)
+        })
+      }
+
+      if (activeRole === 'mahasiswa') {
+        const cleanNim = username.trim()
+        const storedProfile = JSON.parse(localStorage.getItem(`profile_${cleanNim}`) || 'null')
+        
+        let userFullName = cleanNim.includes('@') ? cleanNim.split('@')[0] : `Mahasiswa (${cleanNim})`
+        let userNim = cleanNim
+        let userEmail = cleanNim.includes('@') ? cleanNim : `${cleanNim}@students.amikom.ac.id`
+
+        if (storedProfile) {
+          userFullName = storedProfile.fullName || storedProfile.full_name || userFullName
+          userNim = cleanNim
+          userEmail = storedProfile.email || userEmail
+        } else if (cleanNim !== '22.11.4321') {
+          userFullName = cleanNim.includes('@') ? cleanNim.split('@')[0] : `Mahasiswa (${cleanNim})`
         }
+
+        const sessionUser = {
+          full_name: userFullName,
+          nim: userNim,
+          email: userEmail,
+          study_program: storedProfile?.studyProgram || 'Informatika',
+          semester: storedProfile?.semester || '7',
+        }
+
+        localStorage.setItem('active_user_session', JSON.stringify(sessionUser))
+
+        // Update active internship data in local storage
+        const currentData = loadInternship(userNim)
+        saveInternship({
+          ...currentData,
+          studentName: userFullName,
+          studentId: userNim,
+          studentEmail: userEmail,
+        })
       }
 
       const demo = demoAccounts[activeRole]
@@ -99,7 +129,10 @@ function Login({ role = 'mahasiswa' }) {
       }
     } catch (err) {
       console.error(err)
-      setError('Terjadi kesalahan saat masuk.')
+      const demo = demoAccounts[activeRole]
+      if (demo) {
+        navigate(demo.redirect)
+      }
     } finally {
       setLoading(false)
     }
@@ -132,6 +165,28 @@ function Login({ role = 'mahasiswa' }) {
           return
         }
       }
+
+      // Save student profile to localStorage
+      const newProfile = {
+        fullName,
+        full_name: fullName,
+        nim,
+        studyProgram,
+        semester,
+        email,
+      }
+
+      localStorage.setItem(`profile_${nim}`, JSON.stringify(newProfile))
+      localStorage.setItem('active_user_session', JSON.stringify(newProfile))
+
+      const currentData = loadInternship()
+      saveInternship({
+        ...currentData,
+        studentName: fullName,
+        studentId: nim,
+        studentEmail: email,
+        studyProgram: studyProgram,
+      })
 
       setSuccessMessage('Pendaftaran akun mahasiswa berhasil! Silakan masuk.')
       setUsername(nim)

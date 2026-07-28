@@ -77,12 +77,18 @@ const NAV_ITEMS = [
 
 function StudentDashboard() {
   const navigate = useNavigate()
-  const [profile, setProfile] = useState({
-    full_name: 'Nadia Putri Ramadhani',
-    nim: '22.11.4321',
-    study_program: 'Informatika',
-    semester: '7',
-    email: 'nadia.demo@mahasiswa.ac.id'
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem('active_user_session')
+    if (saved) {
+      try { return JSON.parse(saved) } catch (e) { console.error(e) }
+    }
+    return {
+      full_name: 'Nadia Putri Ramadhani',
+      nim: '22.11.4321',
+      study_program: 'Informatika',
+      semester: '7',
+      email: 'nadia.demo@mahasiswa.ac.id'
+    }
   })
 
   const [internship, setInternship] = useState(() => loadInternship())
@@ -99,27 +105,6 @@ function StudentDashboard() {
         if (remoteData) {
           setInternship(remoteData)
           saveInternship(remoteData)
-        } else {
-          // Reset local cache to empty state using logged-in profile
-          const empty = {
-            id: '',
-            status: 'DRAFT_PENGAJUAN',
-            studentName: userProfile?.full_name || 'Nadia Putri Ramadhani',
-            studentId: userProfile?.nim || '22.11.4321',
-            studyProgram: userProfile?.study_program || 'Informatika',
-            semester: '7',
-            studentEmail: userProfile?.email || 'nadia.demo@mahasiswa.ac.id',
-            partnerName: '',
-            position: '',
-            startDate: '',
-            endDate: '',
-            partnerSupervisor: '',
-            dplName: '',
-            description: '',
-            revisionNote: '',
-          }
-          setInternship(empty)
-          saveInternship(empty)
         }
       }
     }
@@ -150,11 +135,11 @@ function StudentDashboard() {
     return { ...step, state: 'locked', percent: 0 }
   })
 
-  const studentName = (profile && profile.full_name && profile.full_name !== 'Nadia Putri Ramadhani') ? profile.full_name : (internship.studentName || 'Nadia Putri Ramadhani')
+  const studentName = profile?.full_name || profile?.fullName || internship.studentName || 'Nadia Putri Ramadhani'
   const studentFirstName = studentName.split(' ')[0]
-  const studentNim = (profile && profile.nim && profile.nim !== '22.11.4321') ? profile.nim : (internship.studentId || '22.11.4321')
-  const studentProdi = (profile && profile.study_program && profile.study_program !== 'Informatika') ? profile.study_program : (internship.studyProgram || 'Informatika')
-  const studentSemester = (profile && profile.semester) ? profile.semester : (internship.semester || '7')
+  const studentNim = profile?.nim || profile?.studentId || internship.studentId || '22.11.4321'
+  const studentProdi = profile?.study_program || profile?.studyProgram || internship.studyProgram || 'Informatika'
+  const studentSemester = profile?.semester || internship.semester || '7'
 
   const actionContent = getActionContent(internship, hasSubmission)
   const initials = getInitials(studentName)

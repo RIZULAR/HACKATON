@@ -743,21 +743,110 @@ export async function saveInternshipToSupabase(internship) {
 /**
  * Invoke the Supabase Edge Function to send review email to DPL / Mitra
  */
-export async function sendReviewEmail({ type, recipientEmail, recipientName, studentName, reviewUrl }) {
-  if (!isSupabaseConfigured) {
-    console.log(`[LOCAL PREVIEW EMAIL] Ke: ${recipientEmail} | Link: ${reviewUrl}`)
-    return { success: true, previewMode: true }
+export async function sendReviewEmail({ type, recipientEmail, recipientName, studentName, reviewUrl, subject, html }) {
+  const resendApiKey = import.meta.env.VITE_RESEND_API_KEY
+
+  // If VITE_RESEND_API_KEY is configured in .env, send real emails directly via Resend API
+  if (resendApiKey) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${resendApiKey}`
+        },
+        body: JSON.stringify({
+          from: 'MAGISTA Portal <onboarding@resend.dev>',
+          to: [recipientEmail],
+          subject: subject || `[MAGISTA] Tautan Akses Review/Penilaian Magang - ${studentName || 'Mahasiswa'}`,
+          html: html || `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background-color: #ffffff;">
+              <h2 style="color: #0F172A; font-size: 20px; margin-bottom: 8px;">Permintaan Review / Penilaian Magang</h2>
+              <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+                Halo <strong>${recipientName || 'Bpk/Ibu Penilai'}</strong>,
+              </p>
+              <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+                Mahasiswa <strong>${studentName || 'Mahasiswa'}</strong> telah mengajukan berkas magang di platform MAGISTA. Mohon dapat melakukan peninjauan/penilaian melalui tautan khusus di bawah ini:
+              </p>
+
+              <div style="margin: 28px 0; text-align: center;">
+                <a href="${reviewUrl}" style="background-color: #7C3AED; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+                  Buka Form Review / Penilaian
+                </a>
+              </div>
+
+              <p style="color: #94A3B8; font-size: 12px; line-height: 1.5;">
+                Tautan langsung: <br />
+                <a href="${reviewUrl}" style="color: #7C3AED;">${reviewUrl}</a>
+              </p>
+              <hr style="border: none; border-top: 1px solid #F1F5F9; margin: 24px 0;" />
+              <p style="color: #94A3B8; font-size: 11px; text-align: center;">
+                Pesan ini dikirimkan secara otomatis oleh Sistem Integrasi Konversi Magang MAGISTA.
+              </p>
+            </div>
+          `
+        })
+      })
+
+      if (response.ok) {
+        console.log(`[RESEND EMAIL SUCCESS] Email sungguhan berhasil dikirim ke: ${recipientEmail}`)
+        return { success: true, realEmailSent: true }
+      } else {
+        const errJson = await response.json()
+        console.error('[RESEND EMAIL FAILED]', errJson)
+      }
+    } catch (err) {
+      console.error('[RESEND FETCH ERROR]', err)
+    }
   }
 
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-review-email', {
+        body: { type, recipientEmail, recipientName, studentName, reviewUrl }
+      })
+      
+      if (!error && data) return data
+    } catch (err) {
+      console.error('Failed to invoke send-review-email:', err.message)
+    }
+  }
+
+  console.log(`[LOCAL PREVIEW EMAIL] Ke: ${recipientEmail} | Link: ${reviewUrl}`)
+  return { success: true, previewMode: true }
+}
+
+export async function fetchAllInternshipsFromSupabase() {
+  if (!isSupabaseConfigured) return []
+
   try {
-    const { data, error } = await supabase.functions.invoke('send-review-email', {
-      body: { type, recipientEmail, recipientName, studentName, reviewUrl }
-    })
-    
-    if (error) throw error
-    return data
+    const { data: apps, error } = await supabase
+      .from('internship_applications')
+      .select('*, profiles:student_id(*)')
+      .order('created_at', { ascending: false })
+
+    if (error || !apps) return []
+
+    return apps.map((app) => ({
+      id: app.id,
+      bimaId: app.application_code || '',
+      status: mapDbStatusToFrontend(app, null, null),
+      studentName: app.profiles?.full_name || 'Mahasiswa',
+      studentId: app.profiles?.nim || '',
+      studyProgram: app.profiles?.study_program || 'Informatika',
+      semester: '7',
+      studentEmail: app.profiles?.email || '',
+      partnerName: app.partner_name,
+      position: app.position,
+      startDate: app.start_date,
+      endDate: app.end_date,
+      partnerSupervisor: app.supervisor_name,
+      description: app.admin_notes || '',
+      createdAt: app.created_at,
+      updatedAt: app.updated_at,
+    }))
   } catch (err) {
-    console.error('Failed to invoke send-review-email:', err.message)
-    return { success: false, error: err.message }
+    console.error('Error fetching all internships from Supabase:', err)
+    return []
   }
 }
