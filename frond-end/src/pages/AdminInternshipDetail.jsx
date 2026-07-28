@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { useMemo, useState, useEffect } from 'react'
+import { Link, useParams } from 'react-router'
 import {
   findCourseRecommendations,
   getCourseByCode,
@@ -14,6 +14,11 @@ import {
   loadInternship,
   saveInternship,
 } from '../data/internshipStore.js'
+import {
+  fetchInternshipFromSupabase,
+  saveInternshipToSupabase,
+  isSupabaseConfigured,
+} from '../data/supabaseSync.js'
 
 // ---------------------------------------------------------------------------
 // Design tokens — a "registrar's ledger" identity: deep indigo for
@@ -74,6 +79,7 @@ function getInitialTab(status) {
 }
 
 function AdminInternshipDetail() {
+  const { id } = useParams()
   const initialInternship = loadInternship()
 
   const [internship, setInternship] = useState(initialInternship)
@@ -83,6 +89,8 @@ function AdminInternshipDetail() {
 
   const [submissionRevisionNote, setSubmissionRevisionNote] =
     useState(initialInternship.revisionNote || '')
+
+  const [bimaId, setBimaId] = useState(initialInternship.bimaId || '')
 
   const [proposalRevisionNote, setProposalRevisionNote] =
     useState(initialInternship.proposal?.revisionNote || '')
@@ -96,6 +104,25 @@ function AdminInternshipDetail() {
   )
 
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const remoteData = await fetchInternshipFromSupabase(id)
+        if (remoteData) {
+          setInternship(remoteData)
+          saveInternship(remoteData)
+          setBimaId(remoteData.bimaId || '')
+          setSubmissionRevisionNote(remoteData.revisionNote || '')
+          setProposalRevisionNote(remoteData.proposal?.revisionNote || '')
+          setPartnerWeight(remoteData.gradeSettings?.partnerWeight ?? 60)
+          setDplWeight(remoteData.gradeSettings?.dplWeight ?? 40)
+          setActiveTab(getInitialTab(remoteData.status))
+        }
+      }
+    }
+    loadData()
+  }, [id])
 
   const canVerifySubmission =
     internship.status === 'MENUNGGU_VERIFIKASI'
@@ -157,9 +184,15 @@ function AdminInternshipDetail() {
   }
 
   function handleApproveSubmission() {
+    if (!bimaId.trim()) {
+      showMessage('ID Magang BIMA wajib diisi untuk melakukan verifikasi.')
+      return
+    }
+
     const updatedData = {
       ...internship,
       status: 'MAGANG_TERVERIFIKASI',
+      bimaId: bimaId.trim(),
       revisionNote: '',
       updatedAt: new Date().toISOString(),
     }
@@ -167,6 +200,10 @@ function AdminInternshipDetail() {
     if (!saveInternship(updatedData)) {
       showMessage('Verifikasi pengajuan gagal disimpan.')
       return
+    }
+
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
     }
 
     setInternship(updatedData)
@@ -190,6 +227,10 @@ function AdminInternshipDetail() {
     if (!saveInternship(updatedData)) {
       showMessage('Permintaan perbaikan gagal disimpan.')
       return
+    }
+
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
     }
 
     setInternship(updatedData)
@@ -219,6 +260,10 @@ function AdminInternshipDetail() {
       return
     }
 
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+    }
+
     setInternship(updatedData)
     setProposalRevisionNote('')
     showMessage('Usulan konversi berhasil disetujui.')
@@ -246,6 +291,10 @@ function AdminInternshipDetail() {
     if (!saveInternship(updatedData)) {
       showMessage('Permintaan revisi usulan gagal disimpan.')
       return
+    }
+
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
     }
 
     setInternship(updatedData)
@@ -306,6 +355,10 @@ function AdminInternshipDetail() {
     if (!saveInternship(updatedData)) {
       showMessage('Finalisasi hasil gagal disimpan.')
       return
+    }
+
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
     }
 
     setInternship(updatedData)
@@ -390,6 +443,8 @@ function AdminInternshipDetail() {
           <VerificationTab
             internship={internship}
             canVerify={canVerifySubmission}
+            bimaId={bimaId}
+            onBimaIdChange={setBimaId}
             revisionNote={submissionRevisionNote}
             onRevisionNoteChange={(event) => {
               setSubmissionRevisionNote(event.target.value)
@@ -526,6 +581,8 @@ function StageTracker({
 function VerificationTab({
   internship,
   canVerify,
+  bimaId,
+  onBimaIdChange,
   revisionNote,
   onRevisionNoteChange,
   onApprove,
@@ -600,12 +657,25 @@ function VerificationTab({
               perbaikan.
             </p>
 
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-[#0F172A]">
+                Kode Registrasi / ID Magang BIMA*
+              </label>
+              <input
+                type="text"
+                value={bimaId}
+                onChange={(e) => onBimaIdChange(e.target.value)}
+                placeholder="Masukkan ID Magang BIMA (cth: BIMA-2026-98765)"
+                className="mt-1.5 w-full rounded-md border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10"
+              />
+            </div>
+
             <textarea
               rows="5"
               value={revisionNote}
               onChange={onRevisionNoteChange}
               placeholder="Catatan perbaikan pengajuan."
-              className="mt-6 w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10"
+              className="mt-4 w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/10"
             />
 
             <div className="mt-6 space-y-3">
@@ -630,6 +700,7 @@ function VerificationTab({
           <DecisionCompleted
             status={internship.status}
             note={internship.revisionNote}
+            bimaId={internship.bimaId}
           />
         )}
       </aside>
@@ -1168,7 +1239,7 @@ function SummaryCard({ label, value }) {
   )
 }
 
-function DecisionCompleted({ status, note }) {
+function DecisionCompleted({ status, note, bimaId }) {
   return (
     <div className="mt-5 rounded-lg bg-[#F8FAFC] p-5">
       <p className="text-sm font-semibold text-[#0F172A]">
@@ -1178,6 +1249,12 @@ function DecisionCompleted({ status, note }) {
       <p className="mt-2 text-sm text-slate-600">
         Status: <strong>{getStatusLabel(status)}</strong>
       </p>
+
+      {bimaId && (
+        <p className="mt-2 text-sm text-slate-600">
+          ID Magang BIMA: <strong>{bimaId}</strong>
+        </p>
+      )}
 
       {note && (
         <p className="mt-4 text-sm leading-6 text-slate-700">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router'
 import { getCourseByCode } from '../data/conversionMaster.js'
 import {
@@ -8,6 +8,11 @@ import {
   loadInternship,
   saveInternship,
 } from '../data/internshipStore.js'
+import {
+  fetchInternshipFromSupabase,
+  saveInternshipToSupabase,
+  isSupabaseConfigured,
+} from '../data/supabaseSync.js'
 
 function getClaimedCourseCodes(internship) {
   const courseCodes = internship.claim.activities.flatMap(
@@ -59,7 +64,29 @@ function DplReview() {
     internship.dplReview.revisionNote || '',
   )
 
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const remoteData = await fetchInternshipFromSupabase()
+        if (remoteData) {
+          setInternship(remoteData)
+          saveInternship(remoteData)
+          setReviewerName(remoteData.dplReview?.reviewerName || remoteData.dplName || '')
+          setScores(createInitialScores(remoteData, getClaimedCourseCodes(remoteData)))
+          setGeneralComment(remoteData.dplReview?.generalComment || '')
+          setRevisionNote(remoteData.dplReview?.revisionNote || '')
+        }
+      }
+    }
+    loadData()
+  }, [])
+
   const tokenValid = token === DPL_DEMO_TOKEN
+
+  const isProposalMode =
+    internship.status === 'MENUNGGU_VALIDASI_USULAN' ||
+    internship.status === 'DRAFT_USULAN' ||
+    internship.status === 'PERLU_REVISI_USULAN'
 
   const partnerSubmitted = Boolean(
     internship.partnerAssessment.submittedAt,
@@ -67,13 +94,14 @@ function DplReview() {
 
   const reviewSubmitted = Boolean(internship.dplReview.submittedAt)
 
-  const reviewAvailable =
+  const reviewAvailable = isProposalMode || (
     partnerSubmitted &&
     (internship.status === 'MENUNGGU_REVIEW_DPL' ||
       reviewSubmitted ||
       internship.status === 'SIAP_FINALISASI' ||
       internship.status === 'PERLU_REVISI_KLAIM' ||
       internship.status === 'SELESAI')
+  )
 
   function handleScoreChange(courseCode, field, value) {
     setScores((currentScores) =>
@@ -174,6 +202,10 @@ function DplReview() {
       return
     }
 
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+    }
+
     setInternship(updatedData)
     setErrors({})
     setMessage('Review DPL berhasil dikirim dan klaim disetujui.')
@@ -207,11 +239,68 @@ function DplReview() {
       return
     }
 
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+    }
+
     setInternship(updatedData)
     setErrors({})
     setMessage(
       'Permintaan revisi berhasil dikirim kepada mahasiswa.',
     )
+  }
+
+
+  function handleApproveProposal() {
+    const currentTime = new Date().toISOString()
+    const updatedData = {
+      ...internship,
+      status: 'MAGANG_TERVERIFIKASI',
+      proposal: {
+        ...internship.proposal,
+        status: 'approved',
+        approvedAt: currentTime,
+      },
+      updatedAt: currentTime,
+    }
+
+    if (!saveInternship(updatedData)) {
+      setMessage('Persetujuan usulan gagal disimpan.')
+      return
+    }
+
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+    }
+
+    setInternship(updatedData)
+    setMessage('Usulan konversi berhasil disetujui. Mahasiswa dapat memulai program magang.')
+  }
+
+  function handleRejectOrRevisionProposal(note) {
+    const currentTime = new Date().toISOString()
+    const updatedData = {
+      ...internship,
+      status: 'PERLU_REVISI_USULAN',
+      proposal: {
+        ...internship.proposal,
+        status: 'revision',
+        revisionNote: note,
+      },
+      updatedAt: currentTime,
+    }
+
+    if (!saveInternship(updatedData)) {
+      setMessage('Keputusan revisi gagal disimpan.')
+      return
+    }
+
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+    }
+
+    setInternship(updatedData)
+    setMessage('Usulan konversi dikembalikan ke mahasiswa untuk revisi.')
   }
 
   if (!tokenValid) {
@@ -232,7 +321,7 @@ function DplReview() {
     )
   }
 
-  if (!partnerSubmitted) {
+  if (!isProposalMode && !partnerSubmitted) {
     return (
       <MessagePage
         title="Review DPL belum tersedia"
@@ -240,6 +329,7 @@ function DplReview() {
       />
     )
   }
+
 
   if (!reviewAvailable) {
     return (
@@ -251,21 +341,182 @@ function DplReview() {
       />
     )
   }
+  if (isProposalMode) {
+    const isProposalSubmitted = internship.proposal?.status === 'approved'
+    const isProposalRevision = internship.status === 'PERLU_REVISI_USULAN'
+
+    return (
+      <main className="min-h-screen bg-slate-50 font-sans antialiased">
+        <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
+          <div className="mx-auto flex max-w-4xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+            <div className="flex items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/20">
+              <FileIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#F97316]">
+                  Review DPL &middot; Proposal Usulan
+                </p>
+                <span className="h-1.5 w-1.5 rounded-full bg-[#F97316] animate-pulse" />
+              </div>
+                <h1 className="mt-0.5 text-xl font-bold leading-tight text-slate-900 sm:text-2xl">
+                  Persetujuan Usulan Konversi Magang
+                </h1>
+                <p className="mt-0.5 text-sm text-slate-400">
+                  Mahasiswa: {internship.studentName} ({internship.studentId})
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <Link to="/" className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100">
+                Kembali ke Beranda
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-4xl px-5 py-8 lg:px-8">
+          {message && (
+            <div className="mb-6 rounded-2xl bg-emerald-50 border border-emerald-200 p-5 text-sm font-semibold text-emerald-800">
+              {message}
+            </div>
+          )}
+
+          {/* Student Info */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+            <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4">
+              Detail Magang & Mitra
+            </h2>
+            <dl className="mt-6 grid gap-6 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mitra Lapangan</dt>
+                <dd className="mt-1 text-sm font-bold text-slate-700">{internship.partnerName}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Posisi Magang</dt>
+                <dd className="mt-1 text-sm font-bold text-slate-700">{internship.position}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Periode Magang</dt>
+                <dd className="mt-1 text-sm font-bold text-slate-700">
+                  {formatDateRange(internship.startDate, internship.endDate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nama Dosen DPL</dt>
+                <dd className="mt-1 text-sm font-bold text-slate-700">{reviewerName}</dd>
+              </div>
+            </dl>
+          </section>
+
+          {/* Proposed Activities Mapping */}
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+            <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4 mb-6">
+              Rencana Aktivitas & Rekomendasi SKS
+            </h2>
+            <div className="space-y-6">
+              {internship.proposal?.activities?.map((activity, idx) => (
+                <div key={activity.id} className="rounded-2xl border border-slate-100 p-5 bg-slate-50/50">
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-slate-900">Aktivitas {idx + 1}</h3>
+                    <span className="rounded-full bg-[#F3E8FF] text-[#7C3AED] px-3 py-1 text-xs font-semibold">
+                      {activity.estimatedHours} Jam Kerja
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-700 leading-6">{activity.description}</p>
+                  
+                  <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mata Kuliah Konversi:</p>
+                    {activity.selectedCourseCodes?.map(code => {
+                      const course = getCourseByCode(code)
+                      return (
+                        <div key={code} className="inline-flex items-center rounded-lg bg-white border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700 mr-2">
+                          {code} - {course?.name} ({course?.credits} SKS)
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* DPL Decision Form */}
+          {internship.proposal?.status !== 'approved' && internship.status !== 'PERLU_REVISI_USULAN' && internship.status !== 'MAGANG_TERVERIFIKASI' ? (
+            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+              <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4 mb-6">
+                Keputusan DPL
+              </h2>
+              <div>
+                <label className="text-sm font-semibold text-slate-800">Umpan Balik / Catatan DPL</label>
+                <textarea
+                  rows="4"
+                  id="proposalComment"
+                  placeholder="Masukkan saran perbaikan jika meminta revisi, atau komentar umum..."
+                  className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#F3E8FF]"
+                />
+              </div>
+
+              <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const note = document.getElementById('proposalComment')?.value || ''
+                    if (!note.trim()) {
+                      alert('Harap isi catatan revisi terlebih dahulu.')
+                      return
+                    }
+                    handleRejectOrRevisionProposal(note)
+                  }}
+                  className="rounded-xl border border-orange-300 bg-white px-5 py-3 text-sm font-bold text-orange-600 transition hover:bg-orange-50"
+                >
+                  Minta Perbaikan Usulan
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleApproveProposal}
+                  className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+                >
+                  Setujui Usulan Konversi
+                </button>
+              </div>
+            </section>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4 font-bold text-lg">
+                ✓
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Keputusan Telah Dikirim</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                Usulan konversi magang ini saat ini berstatus: <strong className="text-slate-700">{getStatusLabel(internship.status)}</strong>.
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 font-sans antialiased">
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/20">
               <FileIcon className="h-5 w-5" />
             </span>
 
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED]">
-                Review DPL &middot; Tanpa Login
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#F97316]">
+                  Review DPL &middot; Tanpa Login
+                </p>
+                <span className="h-1.5 w-1.5 rounded-full bg-[#F97316] animate-pulse" />
+              </div>
 
-              <h1 className="mt-0.5 text-xl font-semibold leading-tight text-slate-900 sm:text-2xl">
+              <h1 className="mt-0.5 text-xl font-bold leading-tight text-slate-900 sm:text-2xl">
                 Review Akademik Klaim Konversi
               </h1>
 
@@ -317,14 +568,21 @@ function DplReview() {
         )}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
-          <div className="border-b border-slate-100 pb-6">
-            <h2 className="text-lg font-bold text-slate-900">
-              Informasi Mahasiswa dan Magang
-            </h2>
+          <div className="border-b border-slate-100 pb-6 flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F3E8FF] text-[#7C3AED] border border-[#E9D5FF]">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Informasi Mahasiswa dan Magang
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Data pengajuan yang terhubung dengan klaim konversi.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Data pengajuan yang terhubung dengan klaim konversi.
+              </p>
+            </div>
           </div>
 
           <dl className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -355,15 +613,21 @@ function DplReview() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
-          <div className="border-b border-slate-100 pb-6">
-            <h2 className="text-lg font-bold text-slate-900">
-              Penilaian Mitra
-            </h2>
+          <div className="border-b border-slate-100 pb-6 flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-[#F97316] border border-orange-200">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.246.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.77-.57-.37-1.81.588-1.81h4.907a1 1 0 00.95-.69l1.519-4.674z" />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Penilaian Mitra
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Nilai Mitra digunakan sebagai bahan pertimbangan review
-              akademik.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Nilai Mitra digunakan sebagai bahan pertimbangan review akademik.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
@@ -392,14 +656,21 @@ function DplReview() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
-          <div className="border-b border-slate-100 pb-6">
-            <h2 className="text-lg font-bold text-slate-900">
-              Identitas DPL
-            </h2>
+          <div className="border-b border-slate-100 pb-6 flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F3E8FF] text-[#7C3AED] border border-[#E9D5FF]">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Identitas DPL
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              DPL melakukan review akademik tanpa membuat akun.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                DPL melakukan review akademik tanpa membuat akun.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 max-w-xl">
@@ -436,14 +707,21 @@ function DplReview() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
-          <div className="border-b border-slate-100 pb-6">
-            <h2 className="text-lg font-bold text-slate-900">
-              Review per Mata Kuliah
-            </h2>
+          <div className="border-b border-slate-100 pb-6 flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-[#F97316] border border-orange-200">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Review per Mata Kuliah
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Bandingkan usulan, realisasi, bukti, dan nilai Mitra.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Bandingkan usulan, realisasi, bukti, dan nilai Mitra.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 space-y-6">
@@ -564,14 +842,7 @@ function DplReview() {
           )}
         </section>
 
-        <div className="mt-6 text-center">
-          <Link
-            to="/"
-            className="text-sm font-semibold text-[#7C3AED] hover:text-[#6D28D9]"
-          >
-            Kembali ke Halaman Demo
-          </Link>
-        </div>
+
       </div>
     </main>
   )
@@ -762,26 +1033,28 @@ function InfoItem({ label, value }) {
 
 function MessagePage({ title, description }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl font-bold text-red-600">
-          !
+    <main className="relative flex min-h-screen items-center justify-center bg-slate-50 p-6 overflow-hidden">
+      {/* Decorative blurred background blobs */}
+      <span className="pointer-events-none absolute -left-12 -top-12 h-64 w-64 rounded-full bg-[#7C3AED]/10 blur-3xl" />
+      <span className="pointer-events-none absolute -right-12 -bottom-12 h-64 w-64 rounded-full bg-[#F97316]/10 blur-3xl" />
+
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/80 p-8 text-center shadow-xl shadow-slate-100 backdrop-blur-md">
+        {/* Warning Icon wrapper */}
+        <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 border border-red-200 text-red-500 shadow-sm">
+          <svg className="h-7 w-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
         </div>
 
-        <h1 className="mt-5 text-xl font-bold text-slate-900">
+        <h1 className="mt-6 text-xl font-bold text-slate-800 tracking-tight leading-tight">
           {title}
         </h1>
 
-        <p className="mt-2 text-sm leading-6 text-slate-500">
+        <p className="mt-3 text-sm leading-6 text-slate-500 font-medium">
           {description}
         </p>
 
-        <Link
-          to="/"
-          className="mt-6 inline-flex rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-        >
-          Kembali ke Halaman Demo
-        </Link>
+
       </div>
     </main>
   )

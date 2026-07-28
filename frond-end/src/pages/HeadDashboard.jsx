@@ -1,9 +1,13 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import {
   formatDateRange,
   getStatusLabel,
   loadInternship,
+  saveInternship,
 } from '../data/internshipStore.js'
+import { fetchInternshipFromSupabase, fetchStatsFromSupabase, isSupabaseConfigured } from '../data/supabaseSync.js'
+import { CONVERSION_MASTER } from '../data/conversionMaster.js'
 
 const processSteps = [
   {
@@ -63,18 +67,99 @@ function getCurrentStage(status) {
 }
 
 function HeadDashboard() {
-  const internship = loadInternship()
+  const [internship, setInternship] = useState(() => loadInternship())
+  const [stats, setStats] = useState({
+    totalMagang: internship.id ? 1 : 0,
+    waitingVerification: internship.status === 'MENUNGGU_VERIFIKASI' ? 1 : 0,
+    needRevision: internship.status === 'PERLU_PERBAIKAN_PENGAJUAN' ? 1 : 0,
+    verified: internship.status === 'MAGANG_TERVERIFIKASI' ? 1 : 0,
+  })
+
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const remoteData = await fetchInternshipFromSupabase()
+        if (remoteData) {
+          setInternship(remoteData)
+          saveInternship(remoteData)
+        }
+        const remoteStats = await fetchStatsFromSupabase()
+        if (remoteStats) {
+          setStats(remoteStats)
+        }
+      }
+    }
+    loadData()
+  }, [])
+
   const hasSubmission = Boolean(internship.id)
   const currentStage = getCurrentStage(internship.status)
 
-  const resultCourses = internship.result?.courses || []
-  const totalCredits = internship.result?.totalCredits || 0
-  const averageScore = internship.result?.averageScore ?? '-'
-  const letterGrade = internship.result?.letterGrade || '-'
+  const finalScore = internship.partnerAssessment?.scores?.length > 0
+    ? (internship.partnerAssessment.scores.reduce((sum, s) => sum + s.score, 0) / internship.partnerAssessment.scores.length) * 0.7 + 
+      (internship.dplReview?.scores?.length > 0 ? (internship.dplReview.scores.reduce((sum, s) => sum + s.score, 0) / internship.dplReview.scores.length) * 0.3 : 0)
+    : null
+
+  const averageScore = finalScore ? finalScore.toFixed(2) : '-'
+  const letterGrade = finalScore
+    ? (finalScore >= 80 ? 'A' : finalScore >= 70 ? 'B' : finalScore >= 60 ? 'C' : finalScore >= 50 ? 'D' : 'E')
+    : '-'
+
+  const resultCourses = []
+  if (internship.proposal?.activities) {
+    const courseCodes = new Set()
+    internship.proposal.activities.forEach(act => {
+      act.selectedCourseCodes?.forEach(code => courseCodes.add(code))
+    })
+    courseCodes.forEach(code => {
+      const master = CONVERSION_MASTER.find(m => m.courseCode === code)
+      if (master) resultCourses.push(master)
+    })
+  }
+
+  const totalCredits = resultCourses.reduce((sum, c) => sum + c.credits, 0)
 
   const partnerSubmitted = Boolean(internship.partnerAssessment?.submittedAt)
   const dplSubmitted = Boolean(internship.dplReview?.submittedAt)
   const isFinalized = internship.status === 'SELESAI'
+
+  const handleExportCSV = () => {
+    if (!internship || !internship.id) {
+      alert('Belum ada data magang yang terkonversi untuk diekspor.')
+      return
+    }
+
+    const headers = ['Kode MK', 'Mata Kuliah', 'NIM', 'Nama Mahasiswa', 'Nilai Angka', 'Nilai Huruf']
+    const rows = []
+
+    if (resultCourses.length > 0) {
+      resultCourses.forEach(c => {
+        rows.push([
+          c.courseCode,
+          c.courseName,
+          internship.studentId,
+          internship.studentName,
+          averageScore,
+          letterGrade
+        ])
+      })
+    } else {
+      rows.push(['-', 'Belum ada mata kuliah yang terkonversi', internship.studentId, internship.studentName, '-', '-'])
+    }
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${val}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.setAttribute('download', `Rekap_Konversi_Magang_${internship.studentId}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const steps = processSteps.map((step, index) => {
     const stepNumber = index + 1
@@ -234,9 +319,18 @@ function HeadDashboard() {
                 </p>
               </div>
 
-              <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 sm:self-start">
-                Hanya Baca
-              </span>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleExportCSV}
+                  className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#F97316] hover:bg-[#EA580C] px-5 py-3 text-sm font-semibold text-white transition cursor-pointer shadow-sm"
+                >
+                  Ekspor Rekapitulasi CSV
+                </button>
+
+                <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-900">
+                  Hanya Baca
+                </span>
+              </div>
             </div>
 
             {/* STAT CARDS */}

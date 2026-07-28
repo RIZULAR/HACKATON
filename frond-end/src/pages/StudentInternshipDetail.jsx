@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import StudentResultTab from '../components/StudentResultTab.jsx'
 import {
@@ -12,6 +12,13 @@ import {
   loadInternship,
   saveInternship,
 } from '../data/internshipStore.js'
+import {
+  fetchInternshipFromSupabase,
+  saveInternshipToSupabase,
+  isSupabaseConfigured,
+  sendReviewEmail,
+  getLoggedInUserProfile,
+} from '../data/supabaseSync.js'
 
 const tabs = ['Pengajuan', 'Usulan', 'Klaim', 'Hasil']
 
@@ -164,6 +171,43 @@ function getInitialForm(routeId) {
   return savedInternship
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-red-50 border border-red-200 rounded-2xl m-4 text-red-950 font-mono">
+          <h2 className="text-lg font-bold">Terjadi Kesalahan UI (React Crash)</h2>
+          <p className="mt-2 text-sm">{this.state.error?.toString()}</p>
+          <pre className="mt-4 p-4 bg-red-900 text-white rounded-xl text-xs overflow-auto max-h-96">
+            {this.state.error?.stack}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 cursor-pointer"
+          >
+            Muat Ulang Halaman
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function StudentInternshipDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -174,6 +218,58 @@ function StudentInternshipDetail() {
   const [activeTab, setActiveTab] = useState(() =>
     getInitialTab(initialForm.status),
   )
+
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const userProfile = await getLoggedInUserProfile()
+
+        if (id !== 'baru') {
+          const remoteData = await fetchInternshipFromSupabase(id)
+          if (remoteData) {
+            const merged = {
+              ...remoteData,
+              studentName: userProfile?.full_name || remoteData.studentName,
+              studentId: userProfile?.nim || remoteData.studentId,
+              studyProgram: userProfile?.study_program || remoteData.studyProgram,
+              studentEmail: userProfile?.email || remoteData.studentEmail,
+            }
+            setForm(merged)
+            saveInternship(merged)
+            setActiveTab(getInitialTab(merged.status))
+          } else {
+            // Mock ID or nonexistent remote application, clear cache and prefill user details
+            const emptyForm = {
+              ...getEmptyInternship(),
+              studentName: userProfile?.full_name || 'Nadia Putri Ramadhani',
+              studentId: userProfile?.nim || '22.11.4321',
+              studyProgram: userProfile?.study_program || 'Informatika',
+              studentEmail: userProfile?.email || 'nadia.demo@mahasiswa.ac.id',
+            }
+            setForm(emptyForm)
+            saveInternship(emptyForm)
+          }
+        } else if (userProfile) {
+          setForm((prev) => ({
+            ...prev,
+            studentName: userProfile.full_name || prev.studentName,
+            studentId: userProfile.nim || prev.studentId,
+            studyProgram: userProfile.study_program || prev.studyProgram,
+            studentEmail: userProfile.email || prev.studentEmail,
+          }))
+        }
+      }
+    }
+    loadData()
+  }, [id])
+
+  const saveAndSync = (updatedData) => {
+    const localSaved = saveInternship(updatedData)
+    if (localSaved && isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+    }
+    return localSaved
+  }
 
   const [submissionErrors, setSubmissionErrors] = useState({})
   const [proposalErrors, setProposalErrors] = useState({})
@@ -201,7 +297,7 @@ function StudentInternshipDetail() {
     form.status === 'SELESAI' &&
     Boolean(form.result?.courses?.length)
 
-  const pageTitle = form.id || 'Pengajuan Magang Baru'
+  const pageTitle = form.bimaId ? `Magang BIMA: ${form.bimaId}` : 'Pengajuan Magang'
 
   const statusLabel = form.id
     ? getStatusLabel(form.status)
@@ -286,28 +382,42 @@ function StudentInternshipDetail() {
     return Object.keys(nextErrors).length === 0
   }
 
-  function handleSaveSubmissionDraft() {
+  async function handleSaveSubmissionDraft() {
     const currentTime = new Date().toISOString()
+    const originalId = form.id || ''
 
     const draftData = {
       ...form,
-      id: form.id || '',
-      status: form.id ? form.status : 'DRAFT_PENGAJUAN',
+      id: originalId,
+      status: originalId ? form.status : 'DRAFT_PENGAJUAN',
       createdAt: form.createdAt || currentTime,
       updatedAt: currentTime,
     }
 
-    if (!saveInternship(draftData)) {
-      showMessage('Draf gagal disimpan. Silakan coba kembali.')
-      return
+    if (isSupabaseConfigured) {
+      const res = await saveInternshipToSupabase(draftData)
+      if (!res.success) {
+        showMessage(`Gagal menyimpan draf ke database Cloud: ${res.error}`)
+        return
+      }
+      draftData.id = res.id
+    } else {
+      if (!draftData.id) {
+        draftData.id = 'MAG-2026-001'
+      }
     }
 
+    saveInternship(draftData)
     setForm(draftData)
     setSubmissionErrors({})
     showMessage('Draf pengajuan berhasil disimpan.')
+
+    if (id === 'baru') {
+      navigate(`/mahasiswa/magang/${draftData.id}`, { replace: true })
+    }
   }
 
-  function handleSubmitInternship(event) {
+  async function handleSubmitInternship(event) {
     event.preventDefault()
 
     if (!validateSubmission()) {
@@ -318,27 +428,36 @@ function StudentInternshipDetail() {
     }
 
     const currentTime = new Date().toISOString()
-    const internshipId = form.id || 'MAG-2026-001'
+    const originalId = form.id || ''
 
     const submittedData = {
       ...form,
-      id: internshipId,
+      id: originalId,
       status: 'MENUNGGU_VERIFIKASI',
       createdAt: form.createdAt || currentTime,
       updatedAt: currentTime,
       submittedAt: currentTime,
     }
 
-    if (!saveInternship(submittedData)) {
-      showMessage('Pengajuan gagal dikirim. Silakan coba kembali.')
-      return
+    if (isSupabaseConfigured) {
+      const res = await saveInternshipToSupabase(submittedData)
+      if (!res.success) {
+        showMessage(`Pengajuan gagal dikirim ke Cloud Database: ${res.error}`)
+        return
+      }
+      submittedData.id = res.id
+    } else {
+      if (!submittedData.id) {
+        submittedData.id = 'MAG-2026-001'
+      }
     }
 
+    saveInternship(submittedData)
     setForm(submittedData)
     setSubmissionErrors({})
     showMessage('Pengajuan berhasil dikirim kepada Prodi.')
 
-    navigate(`/mahasiswa/magang/${internshipId}`, {
+    navigate(`/mahasiswa/magang/${submittedData.id}`, {
       replace: true,
     })
   }
@@ -484,6 +603,17 @@ function StudentInternshipDetail() {
       }
     })
 
+    // Validate 1 SKS = 45 hours OBE workload rule
+    const uniqueCourseCodes = [...new Set(form.proposal.activities.flatMap(a => a.selectedCourseCodes || []))]
+    const uniqueCourses = uniqueCourseCodes.map(code => getCourseByCode(code)).filter(Boolean)
+    const totalSKS = uniqueCourses.reduce((sum, c) => sum + c.credits, 0)
+    const totalHours = form.proposal.activities.reduce((sum, a) => sum + Number(a.estimatedHours || 0), 0)
+    const minRequiredHours = totalSKS * 45
+
+    if (totalHours < minRequiredHours) {
+      nextErrors.activities = `Total beban kerja (${totalHours} jam) belum mencukupi untuk konversi ${totalSKS} SKS (minimal ${minRequiredHours} jam berdasarkan standar OBE 1 SKS = 45 jam).`
+    }
+
     setProposalErrors(nextErrors)
 
     return Object.keys(nextErrors).length === 0
@@ -507,7 +637,7 @@ function StudentInternshipDetail() {
       updatedAt: currentTime,
     }
 
-    if (!saveInternship(updatedData)) {
+    if (!saveAndSync(updatedData)) {
       showMessage('Draf usulan gagal disimpan.')
       return
     }
@@ -540,14 +670,27 @@ function StudentInternshipDetail() {
       updatedAt: currentTime,
     }
 
-    if (!saveInternship(submittedData)) {
+    if (!saveAndSync(submittedData)) {
       showMessage('Usulan gagal dikirim kepada Prodi.')
       return
     }
 
+    // Trigger DPL Review Email
+    sendReviewEmail({
+      type: 'dpl_proposal_review',
+      recipientEmail: 'dpl.ade@amikom.ac.id',
+      recipientName: form.dplName || 'Ade Putranto, M.Kom.',
+      studentName: form.studentName || 'Nadia Putri Ramadhani',
+      reviewUrl: `${window.location.origin}/dpl/DPL_DEMO_TOKEN`
+    }).then(res => {
+      if (res && res.previewMode) {
+        console.log(`%c[EMAIL SIMULATOR] Link Review Usulan DPL: ${window.location.origin}/dpl/DPL_DEMO_TOKEN`, "color: #7C3AED; font-weight: bold; font-size: 14px;");
+      }
+    })
+
     setForm(submittedData)
     setProposalErrors({})
-    showMessage('Usulan berhasil dikirim kepada Prodi.')
+    showMessage('Usulan berhasil dikirim kepada DPL untuk validasi.')
   }
 
   function handleClaimChange(claimActivityId, field, value) {
@@ -754,7 +897,7 @@ function StudentInternshipDetail() {
       updatedAt: currentTime,
     }
 
-    if (!saveInternship(updatedData)) {
+    if (!saveAndSync(updatedData)) {
       showMessage(
         'Draf klaim gagal disimpan. Periksa ukuran file bukti.',
       )
@@ -788,12 +931,25 @@ function StudentInternshipDetail() {
       updatedAt: currentTime,
     }
 
-    if (!saveInternship(submittedData)) {
+    if (!saveAndSync(submittedData)) {
       showMessage(
         'Klaim gagal dikirim. Periksa ukuran file bukti.',
       )
       return
     }
+
+    // Trigger Partner Assessment Email
+    sendReviewEmail({
+      type: 'mitra_assessment',
+      recipientEmail: 'mitra@demo.com',
+      recipientName: form.partnerSupervisor || 'Supervisor Mitra',
+      studentName: form.studentName || 'Nadia Putri Ramadhani',
+      reviewUrl: `${window.location.origin}/mitra/MITRA_DEMO_TOKEN`
+    }).then(res => {
+      if (res && res.previewMode) {
+        console.log(`%c[EMAIL SIMULATOR] Link Penilaian Supervisor Mitra: ${window.location.origin}/mitra/MITRA_DEMO_TOKEN`, "color: #F97316; font-weight: bold; font-size: 14px;");
+      }
+    })
 
     setForm(submittedData)
     setClaimErrors({})
@@ -803,7 +959,8 @@ function StudentInternshipDetail() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 font-sans antialiased">
+    <ErrorBoundary>
+      <main className="min-h-screen bg-slate-50 font-sans antialiased">
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3.5">
@@ -865,8 +1022,8 @@ function StudentInternshipDetail() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
-          <nav className="flex min-w-max gap-1">
+        <div className="overflow-x-auto rounded-2xl bg-slate-100/80 p-1.5 border border-slate-200/50">
+          <nav className="flex min-w-max gap-1.5">
             {tabs.map((tab) => {
               const accessible =
                 tab === 'Pengajuan' ||
@@ -881,17 +1038,17 @@ function StudentInternshipDetail() {
                   type="button"
                   disabled={!accessible}
                   onClick={() => handleTabChange(tab)}
-                  className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-medium transition ${
+                  className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition-all duration-200 ${
                     activeTab === tab
-                      ? 'bg-[#7C3AED] text-white shadow-sm'
+                      ? 'bg-white text-[#7C3AED] shadow-md shadow-slate-200/80 scale-[1.02] border border-slate-100'
                       : accessible
-                        ? 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                        : 'cursor-not-allowed text-slate-300'
+                        ? 'text-slate-600 hover:bg-white/40 hover:text-[#7C3AED]'
+                        : 'cursor-not-allowed text-slate-400 opacity-60'
                   }`}
                 >
                   {tab}
                   {!accessible && (
-                    <LockIcon className="h-3 w-3" />
+                    <LockIcon className="h-3.5 w-3.5 text-slate-400" />
                   )}
                 </button>
               )
@@ -934,52 +1091,145 @@ function StudentInternshipDetail() {
           </div>
         )}
 
-        {activeTab === 'Pengajuan' && (
-          <SubmissionTab
-            form={form}
-            errors={submissionErrors}
-            editable={submissionEditable}
-            onChange={handleSubmissionChange}
-            onSaveDraft={handleSaveSubmissionDraft}
-            onSubmit={handleSubmitInternship}
-          />
-        )}
+        <div className="mt-8 grid gap-8 lg:grid-cols-10">
+          <div className="lg:col-span-7">
+            {activeTab === 'Pengajuan' && (
+              <SubmissionTab
+                form={form}
+                errors={submissionErrors}
+                editable={submissionEditable}
+                onChange={handleSubmissionChange}
+                onSaveDraft={handleSaveSubmissionDraft}
+                onSubmit={handleSubmitInternship}
+              />
+            )}
 
-        {activeTab === 'Usulan' && (
-          <ProposalTab
-            form={form}
-            errors={proposalErrors}
-            editable={proposalEditable}
-            onAddActivity={handleAddActivity}
-            onRemoveActivity={handleRemoveActivity}
-            onActivityChange={handleActivityChange}
-            onToggleCourse={handleToggleCourse}
-            onNoteChange={handleProposalNoteChange}
-            onSaveDraft={handleSaveProposalDraft}
-            onSubmit={handleSubmitProposal}
-          />
-        )}
+            {activeTab === 'Usulan' && (
+              <ProposalTab
+                form={form}
+                errors={proposalErrors}
+                editable={proposalEditable}
+                onAddActivity={handleAddActivity}
+                onRemoveActivity={handleRemoveActivity}
+                onActivityChange={handleActivityChange}
+                onToggleCourse={handleToggleCourse}
+                onNoteChange={handleProposalNoteChange}
+                onSaveDraft={handleSaveProposalDraft}
+                onSubmit={handleSubmitProposal}
+              />
+            )}
 
-        {activeTab === 'Klaim' && (
-          <ClaimTab
-            form={form}
-            errors={claimErrors}
-            editable={claimEditable}
-            hasDifference={claimHasDifference}
-            onChange={handleClaimChange}
-            onNoteChange={handleClaimNoteChange}
-            onEvidenceChange={handleEvidenceChange}
-            onRemoveEvidence={handleRemoveEvidence}
-            onSaveDraft={handleSaveClaimDraft}
-            onSubmit={handleSubmitClaim}
-          />
-        )}
+            {activeTab === 'Klaim' && (
+              <ClaimTab
+                form={form}
+                errors={claimErrors}
+                editable={claimEditable}
+                hasDifference={claimHasDifference}
+                onChange={handleClaimChange}
+                onNoteChange={handleClaimNoteChange}
+                onEvidenceChange={handleEvidenceChange}
+                onRemoveEvidence={handleRemoveEvidence}
+                onSaveDraft={handleSaveClaimDraft}
+                onSubmit={handleSubmitClaim}
+              />
+            )}
 
-        {activeTab === 'Hasil' && (
-          <StudentResultTab internship={form} />
-        )}
+            {activeTab === 'Hasil' && (
+              <StudentResultTab internship={form} />
+            )}
+          </div>
+
+          <div className="lg:col-span-3">
+            <div className="sticky top-28 rounded-2xl border border-slate-200 bg-white p-6">
+              <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#7C3AED] text-white text-[10px]">✓</span>
+                Linimasa & Audit Log
+              </h3>
+              
+              <div className="relative border-l border-slate-100 pl-5 ml-2.5 space-y-4">
+                <TimelineItem 
+                  title="Pengajuan Magang" 
+                  date={form.submittedAt ? new Date(form.submittedAt).toLocaleDateString() : '-'} 
+                  completed={['MENUNGGU_VERIFIKASI', 'MAGANG_TERVERIFIKASI', 'DRAFT_USULAN', 'MENUNGGU_VALIDASI_USULAN', 'MAGANG_TERJALAN', 'DRAFT_KLAIM', 'MENUNGGU_PENILAIAN_MITRA', 'MENUNGGU_REVIEW_DPL', 'SIAP_FINALISASI', 'SELESAI'].includes(form.status)}
+                  active={form.status === 'DRAFT_PENGAJUAN' || form.status === 'MENUNGGU_VERIFIKASI'}
+                  description="Identitas dan proposal magang diajukan ke admin prodi."
+                />
+                <TimelineItem 
+                  title="Usulan Konversi" 
+                  date={form.proposal?.approvedAt ? new Date(form.proposal.approvedAt).toLocaleDateString() : '-'} 
+                  completed={['MAGANG_TERJALAN', 'DRAFT_KLAIM', 'MENUNGGU_PENILAIAN_MITRA', 'MENUNGGU_REVIEW_DPL', 'SIAP_FINALISASI', 'SELESAI'].includes(form.status) || form.proposal?.status === 'approved'}
+                  active={form.status === 'DRAFT_USULAN' || form.status === 'MENUNGGU_VALIDASI_USULAN'}
+                  description="Pemetaan aktivitas ke mata kuliah disetujui DPL."
+                />
+                <TimelineItem 
+                  title="Magang Berjalan" 
+                  date="Aktif" 
+                  completed={['DRAFT_KLAIM', 'MENUNGGU_PENILAIAN_MITRA', 'MENUNGGU_REVIEW_DPL', 'SIAP_FINALISASI', 'SELESAI'].includes(form.status)}
+                  active={form.status === 'MAGANG_TERVERIFIKASI'}
+                  description="Mahasiswa sedang aktif menjalani program magang."
+                />
+                <TimelineItem 
+                  title="Penilaian Mitra" 
+                  date={form.partnerAssessment?.submittedAt ? new Date(form.partnerAssessment.submittedAt).toLocaleDateString() : '-'} 
+                  completed={['MENUNGGU_REVIEW_DPL', 'SIAP_FINALISASI', 'SELESAI'].includes(form.status)}
+                  active={form.status === 'MENUNGGU_PENILAIAN_MITRA'}
+                  description="Supervisor Mitra menginput nilai evaluasi magang."
+                />
+                <TimelineItem 
+                  title="Review Akhir DPL" 
+                  date={form.dplReview?.submittedAt ? new Date(form.dplReview.submittedAt).toLocaleDateString() : '-'} 
+                  completed={['SIAP_FINALISASI', 'SELESAI'].includes(form.status)}
+                  active={form.status === 'MENUNGGU_REVIEW_DPL'}
+                  description="DPL memberikan penilaian akademik akhir."
+                />
+                <TimelineItem 
+                  title="Finalisasi Nilai" 
+                  date={form.updatedAt ? new Date(form.updatedAt).toLocaleDateString() : '-'} 
+                  completed={form.status === 'SELESAI'}
+                  active={form.status === 'SIAP_FINALISASI'}
+                  description="Nilai akhir OBE dikalkulasi oleh Kaprodi."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
+    </ErrorBoundary>
+  )
+}
+
+function TimelineItem({ title, date, completed, active, description }) {
+  return (
+    <div className="relative">
+      <span className={`absolute -left-[29px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-bold transition-all duration-300 z-10 ${
+        completed 
+          ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-sm shadow-[#7C3AED]/20' 
+          : active 
+            ? 'bg-orange-500 border-orange-500 text-white ring-4 ring-orange-100 animate-pulse' 
+            : 'bg-white border-slate-200 text-slate-300'
+      }`}>
+        {completed ? '✓' : ''}
+      </span>
+      
+      <div className={`p-3.5 rounded-2xl border transition-all duration-300 ${
+        completed 
+          ? 'bg-slate-50/50 border-slate-100' 
+          : active 
+            ? 'bg-orange-50/30 border-orange-100/50 shadow-sm shadow-orange-50/50' 
+            : 'bg-transparent border-transparent'
+      }`}>
+        <div className="flex justify-between items-center gap-2">
+          <h4 className={`text-xs font-bold ${completed ? 'text-slate-800' : active ? 'text-orange-600' : 'text-slate-400'}`}>
+            {title}
+          </h4>
+          <span className="text-[10px] text-slate-400">{date}</span>
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-400 font-medium">
+          {description}
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -991,6 +1241,66 @@ function SubmissionTab({
   onSaveDraft,
   onSubmit,
 }) {
+  const [step, setStep] = useState(1)
+  const [proposalProgress, setProposalProgress] = useState(form.proposalFile ? 100 : 0)
+  const [acceptanceProgress, setAcceptanceProgress] = useState(form.acceptanceFile ? 100 : 0)
+  const [proposalFileName, setProposalFileName] = useState(form.proposalFile ? 'proposal_magang.pdf' : '')
+  const [acceptanceFileName, setAcceptanceFileName] = useState(form.acceptanceFile ? 'bukti_diterima.pdf' : '')
+
+  const handleFileUpload = (type, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (type === 'proposal') {
+      setProposalFileName(file.name)
+      setProposalProgress(0)
+      let progress = 0
+      const timer = setInterval(() => {
+        progress += 20
+        setProposalProgress(progress)
+        if (progress >= 100) {
+          clearInterval(timer)
+          // Save to form state (simulated URL/file path)
+          onChange({ target: { name: 'proposalFile', value: URL.createObjectURL(file) } })
+        }
+      }, 200)
+    } else {
+      setAcceptanceFileName(file.name)
+      setAcceptanceProgress(0)
+      let progress = 0
+      const timer = setInterval(() => {
+        progress += 20
+        setAcceptanceProgress(progress)
+        if (progress >= 100) {
+          clearInterval(timer)
+          onChange({ target: { name: 'acceptanceFile', value: URL.createObjectURL(file) } })
+        }
+      }, 200)
+    }
+  }
+
+  const handleNext = () => {
+    if (step === 1) {
+      if (!form.partnerName || !form.position || !form.startDate || !form.endDate) {
+        alert('Harap lengkapi semua kolom informasi tempat magang sebelum melanjutkan.')
+        return
+      }
+      setStep(2)
+    } else if (step === 2) {
+      if (!proposalFileName || !acceptanceFileName) {
+        alert('Harap unggah berkas proposal magang dan bukti penerimaan magang terlebih dahulu.')
+        return
+      }
+      setStep(3)
+    }
+  }
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1)
+    }
+  }
+
   return (
     <>
       {!editable && (
@@ -1009,159 +1319,298 @@ function SubmissionTab({
         />
       )}
 
-      <form
-        onSubmit={onSubmit}
-        className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8"
-      >
-        <PageSectionHeader
-          title="Form Pengajuan Magang"
-          description="Data ini digunakan dalam seluruh proses konversi."
-          editable={editable}
-        />
-
-        <section className="mt-7">
-          <SectionTitle
-            title="Identitas Mahasiswa"
-            description="Data mahasiswa pada skenario demo."
-          />
-
-          <div className="mt-5 grid gap-5 rounded-2xl bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <ReadOnlyField
-              label="Nama Mahasiswa"
-              value={form.studentName}
-            />
-
-            <ReadOnlyField
-              label="NIM"
-              value={form.studentId}
-            />
-
-            <ReadOnlyField
-              label="Program Studi"
-              value={form.studyProgram}
-            />
-
-            <ReadOnlyField
-              label="Semester"
-              value={form.semester}
-            />
-
-            <ReadOnlyField
-              label="Email"
-              value={form.studentEmail}
-            />
+      {/* Step Indicators */}
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${step >= 1 ? 'bg-[#7C3AED] text-white' : 'bg-slate-100 text-slate-400'}`}>
+              1
+            </span>
+            <span className={`text-sm font-semibold ${step === 1 ? 'text-[#7C3AED]' : 'text-slate-500'}`}>Informasi Magang</span>
           </div>
-        </section>
-
-        <section className="mt-9 border-t border-slate-100 pt-8">
-          <SectionTitle
-            title="Informasi Tempat Magang"
-            description="Informasi mitra dan posisi magang."
-          />
-
-          <div className="mt-5 grid gap-5 md:grid-cols-2">
-            <FormField
-              label="Nama Mitra"
-              name="partnerName"
-              value={form.partnerName}
-              error={errors.partnerName}
-              disabled={!editable}
-              onChange={onChange}
-            />
-
-            <FormField
-              label="Posisi atau Divisi"
-              name="position"
-              value={form.position}
-              error={errors.position}
-              disabled={!editable}
-              onChange={onChange}
-            />
-
-            <FormField
-              label="Tanggal Mulai"
-              name="startDate"
-              type="date"
-              value={form.startDate}
-              error={errors.startDate}
-              disabled={!editable}
-              onChange={onChange}
-            />
-
-            <FormField
-              label="Tanggal Selesai"
-              name="endDate"
-              type="date"
-              value={form.endDate}
-              error={errors.endDate}
-              disabled={!editable}
-              onChange={onChange}
-            />
+          <div className="h-px flex-1 bg-slate-200 mx-4 hidden sm:block"></div>
+          <div className="flex items-center gap-3">
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${step >= 2 ? 'bg-[#7C3AED] text-white' : 'bg-slate-100 text-slate-400'}`}>
+              2
+            </span>
+            <span className={`text-sm font-semibold ${step === 2 ? 'text-[#7C3AED]' : 'text-slate-500'}`}>Unggah Dokumen</span>
           </div>
+          <div className="h-px flex-1 bg-slate-200 mx-4 hidden sm:block"></div>
+          <div className="flex items-center gap-3">
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${step >= 3 ? 'bg-[#7C3AED] text-white' : 'bg-slate-100 text-slate-400'}`}>
+              3
+            </span>
+            <span className={`text-sm font-semibold ${step === 3 ? 'text-[#7C3AED]' : 'text-slate-500'}`}>Review & Submit</span>
+          </div>
+        </div>
+      </div>
 
-          {form.startDate && form.endDate && (
-            <p className="mt-4 text-sm text-slate-400">
-              Periode magang:{' '}
-              <strong className="font-semibold text-slate-700">
-                {formatDateRange(
-                  form.startDate,
-                  form.endDate,
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+        {step === 1 && (
+          <section className="space-y-8">
+            <div>
+              <SectionTitle
+                title="Identitas Mahasiswa"
+                description="Data mahasiswa pengusul magang."
+              />
+              <div className="mt-5 grid gap-5 rounded-2xl bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-3">
+                <ReadOnlyField label="Nama Mahasiswa" value={form.studentName} />
+                <ReadOnlyField label="NIM" value={form.studentId} />
+                <ReadOnlyField label="Program Studi" value={form.studyProgram} />
+                <ReadOnlyField label="Semester" value={form.semester} />
+                <ReadOnlyField label="Email" value={form.studentEmail} />
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-8">
+              <SectionTitle
+                title="Informasi Tempat Magang"
+                description="Informasi nama mitra, posisi, dan tanggal mulai/selesai."
+              />
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {form.bimaId && (
+                  <FormField
+                    label="ID Magang BIMA"
+                    name="bimaId"
+                    value={form.bimaId}
+                    disabled={true}
+                    onChange={() => {}}
+                  />
                 )}
-              </strong>
-            </p>
-          )}
-        </section>
+                <FormField
+                  label="Nama Mitra"
+                  name="partnerName"
+                  value={form.partnerName}
+                  error={errors.partnerName}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+                <FormField
+                  label="Posisi atau Divisi"
+                  name="position"
+                  value={form.position}
+                  error={errors.position}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+                <FormField
+                  label="Tanggal Mulai"
+                  name="startDate"
+                  type="date"
+                  value={form.startDate}
+                  error={errors.startDate}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+                <FormField
+                  label="Tanggal Selesai"
+                  name="endDate"
+                  type="date"
+                  value={form.endDate}
+                  error={errors.endDate}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+              </div>
+              {form.startDate && form.endDate && (
+                <p className="mt-4 text-sm text-slate-400">
+                  Periode magang:{' '}
+                  <strong className="font-semibold text-slate-700">
+                    {formatDateRange(form.startDate, form.endDate)}
+                  </strong>
+                </p>
+              )}
+            </div>
 
-        <section className="mt-9 border-t border-slate-100 pt-8">
-          <SectionTitle
-            title="Pembimbing"
-            description="Pembimbing Mitra dan DPL."
-          />
-
-          <div className="mt-5 grid gap-5 md:grid-cols-2">
-            <FormField
-              label="Nama Pembimbing Mitra"
-              name="partnerSupervisor"
-              value={form.partnerSupervisor}
-              error={errors.partnerSupervisor}
-              disabled={!editable}
-              onChange={onChange}
-            />
-
-            <FormField
-              label="Nama DPL"
-              name="dplName"
-              value={form.dplName}
-              error={errors.dplName}
-              disabled={!editable}
-              onChange={onChange}
-            />
-          </div>
-        </section>
-
-        <section className="mt-9 border-t border-slate-100 pt-8">
-          <SectionTitle
-            title="Deskripsi Pekerjaan"
-            description="Aktivitas utama selama magang."
-          />
-
-          <TextAreaField
-            name="description"
-            value={form.description}
-            error={errors.description}
-            disabled={!editable}
-            onChange={onChange}
-          />
-        </section>
-
-        {editable && (
-          <ActionButtons
-            draftLabel="Simpan Draf"
-            submitLabel="Kirim Pengajuan ke Prodi"
-            onSaveDraft={onSaveDraft}
-          />
+            <div className="border-t border-slate-100 pt-8">
+              <SectionTitle
+                title="Pembimbing & Deskripsi"
+                description="Pembimbing Mitra, DPL, serta aktivitas pekerjaan."
+              />
+              <div className="mt-5 grid gap-5 md:grid-cols-2 mb-5">
+                <FormField
+                  label="Nama Pembimbing Mitra"
+                  name="partnerSupervisor"
+                  value={form.partnerSupervisor}
+                  error={errors.partnerSupervisor}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+                <FormField
+                  label="Nama Dosen DPL"
+                  name="dplName"
+                  value={form.dplName}
+                  error={errors.dplName}
+                  disabled={!editable}
+                  onChange={onChange}
+                />
+              </div>
+              <TextAreaField
+                label="Deskripsi Pekerjaan"
+                name="description"
+                value={form.description}
+                error={errors.description}
+                disabled={!editable}
+                onChange={onChange}
+              />
+            </div>
+          </section>
         )}
-      </form>
+
+        {step === 2 && (
+          <section className="space-y-8">
+            <div>
+              <SectionTitle
+                title="Unggah Dokumen Magang"
+                description="Harap unggah proposal magang yang disetujui Kaprodi dan bukti penerimaan magang."
+              />
+
+              <div className="mt-6 space-y-6">
+                {/* File 1: Proposal Magang */}
+                <div className="rounded-2xl border border-slate-200 p-5 bg-slate-50/30">
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Proposal Magang (Tanda Tangan Kaprodi) <span className="text-red-500">*</span>
+                  </label>
+                  {editable ? (
+                    <div className="flex flex-col gap-3">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => handleFileUpload('proposal', e)}
+                        className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#F3E8FF] file:text-[#7C3AED] file:cursor-pointer hover:file:bg-[#E9D5FF]"
+                      />
+                      {proposalProgress > 0 && proposalProgress < 100 && (
+                        <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                          <div className="bg-[#7C3AED] h-full" style={{ width: `${proposalProgress}%` }}></div>
+                        </div>
+                      )}
+                      {proposalFileName && (
+                        <p className="text-xs text-slate-500">File terpilih: <span className="font-semibold text-slate-700">{proposalFileName}</span></p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600 font-semibold">✓ Dokumen Proposal Magang Telah Diunggah</p>
+                  )}
+                </div>
+
+                {/* File 2: Bukti Diterima */}
+                <div className="rounded-2xl border border-slate-200 p-5 bg-slate-50/30">
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Bukti Diterima Magang / Letter of Acceptance (LoA) <span className="text-red-500">*</span>
+                  </label>
+                  {editable ? (
+                    <div className="flex flex-col gap-3">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => handleFileUpload('acceptance', e)}
+                        className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#F3E8FF] file:text-[#7C3AED] file:cursor-pointer hover:file:bg-[#E9D5FF]"
+                      />
+                      {acceptanceProgress > 0 && acceptanceProgress < 100 && (
+                        <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                          <div className="bg-[#7C3AED] h-full" style={{ width: `${acceptanceProgress}%` }}></div>
+                        </div>
+                      )}
+                      {acceptanceFileName && (
+                        <p className="text-xs text-slate-500">File terpilih: <span className="font-semibold text-slate-700">{acceptanceFileName}</span></p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600 font-semibold">✓ Bukti Diterima Magang Telah Diunggah</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === 3 && (
+          <section className="space-y-8">
+            <div>
+              <SectionTitle
+                title="Tinjau & Submit Pengajuan"
+                description="Periksa kembali kebenaran data pengajuan magang Anda sebelum dikirim ke Prodi."
+              />
+
+              <div className="mt-6 rounded-2xl border border-slate-200 p-6 space-y-6">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mitra Lapangan</h4>
+                    <p className="text-sm font-bold text-slate-700 mt-1">{form.partnerName}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Posisi Magang</h4>
+                    <p className="text-sm font-bold text-slate-700 mt-1">{form.position}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Periode Magang</h4>
+                    <p className="text-sm font-bold text-slate-700 mt-1">{formatDateRange(form.startDate, form.endDate)}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nama Dosen DPL</h4>
+                    <p className="text-sm font-bold text-slate-700 mt-1">{form.dplName}</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6">
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Berkas Terlampir</h4>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm text-slate-700">📄 Proposal: <span className="font-semibold">{proposalFileName}</span></p>
+                    <p className="text-sm text-slate-700">📄 Bukti Penerimaan: <span className="font-semibold">{acceptanceFileName}</span></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Wizard Controls */}
+        <div className="mt-8 flex justify-between border-t border-slate-100 pt-6">
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              Sebelumnya
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex gap-3">
+            {editable && (
+              <button
+                type="button"
+                onClick={onSaveDraft}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Simpan Draf
+              </button>
+            )}
+
+            {step < 3 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#6D28D9] cursor-pointer"
+              >
+                Selanjutnya
+              </button>
+            ) : (
+              editable && (
+                <button
+                  type="submit"
+                  onClick={onSubmit}
+                  className="rounded-xl bg-[#F97316] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#EA580C] cursor-pointer"
+                >
+                  Kirim Pengajuan ke Prodi
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      </div>
     </>
   )
 }
@@ -1178,6 +1627,13 @@ function ProposalTab({
   onSaveDraft,
   onSubmit,
 }) {
+  const uniqueCourseCodes = [...new Set(form.proposal.activities.flatMap(a => a.selectedCourseCodes || []))]
+  const uniqueCourses = uniqueCourseCodes.map(code => getCourseByCode(code)).filter(Boolean)
+  const totalSKS = uniqueCourses.reduce((sum, c) => sum + c.credits, 0)
+  const totalHours = form.proposal.activities.reduce((sum, a) => sum + Number(a.estimatedHours || 0), 0)
+  const minRequiredHours = totalSKS * 45
+  const isValidWorkload = totalHours >= minRequiredHours
+
   return (
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
       <PageSectionHeader
@@ -1185,6 +1641,31 @@ function ProposalTab({
         description="Masukkan deskripsi aktivitas magang dan pilih rekomendasi mata kuliah konversi."
         editable={editable}
       />
+
+      {/* SKS & Workload Summary Grid for OBE Conversion Validation */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-3 mb-6">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total SKS Terusul</p>
+          <p className="mt-2 text-3xl font-black text-slate-900">{totalSKS} SKS</p>
+          <p className="mt-1 text-xs text-slate-500">Maksimum 20 SKS MBKM</p>
+        </div>
+        
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Beban Kerja</p>
+          <p className="mt-2 text-3xl font-black text-slate-900">{totalHours} Jam</p>
+          <p className="mt-1 text-xs text-slate-500">Estimasi dari aktivitas</p>
+        </div>
+
+        <div className={`rounded-2xl border p-5 ${isValidWorkload ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50/70 border-orange-200'}`}>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Status Kelayakan OBE</p>
+          <p className={`mt-2 text-base font-bold ${isValidWorkload ? 'text-emerald-700' : 'text-orange-700'}`}>
+            {isValidWorkload ? '✅ Beban Kerja Cukup' : '⚠️ Beban Kerja Kurang'}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Butuh minimal {minRequiredHours} jam ({totalSKS} SKS × 45 jam)
+          </p>
+        </div>
+      </div>
 
       <InfoBanner
         title="Pemilihan Mata Kuliah Konversi"

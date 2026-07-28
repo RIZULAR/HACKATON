@@ -1,9 +1,13 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import {
   formatDateRange,
   getStatusLabel,
   loadInternship,
+  saveInternship,
 } from '../data/internshipStore.js'
+import { fetchInternshipFromSupabase, fetchStatsFromSupabase, isSupabaseConfigured } from '../data/supabaseSync.js'
+import { CONVERSION_MASTER } from '../data/conversionMaster.js'
 
 const baseProcessSteps = [
   {
@@ -68,15 +72,92 @@ const NAV_ITEMS = [
 ]
 
 function AdminDashboard() {
-  const internship = loadInternship()
+  const [internship, setInternship] = useState(() => loadInternship())
+  const [stats, setStats] = useState({
+    totalMagang: internship.id ? 1 : 0,
+    waitingVerification: internship.status === 'MENUNGGU_VERIFIKASI' ? 1 : 0,
+    needRevision: internship.status === 'PERLU_PERBAIKAN_PENGAJUAN' ? 1 : 0,
+    verified: internship.status === 'MAGANG_TERVERIFIKASI' ? 1 : 0,
+  })
+
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const remoteData = await fetchInternshipFromSupabase()
+        if (remoteData) {
+          setInternship(remoteData)
+          saveInternship(remoteData)
+        }
+        const remoteStats = await fetchStatsFromSupabase()
+        if (remoteStats) {
+          setStats(remoteStats)
+        }
+      }
+    }
+    loadData()
+  }, [])
+
   const hasSubmission = Boolean(internship.id)
   const currentStage = statusStageMap[internship.status] || 1
 
-  const waitingVerification =
-    internship.status === 'MENUNGGU_VERIFIKASI' ? 1 : 0
-  const needRevision =
-    internship.status === 'PERLU_PERBAIKAN_PENGAJUAN' ? 1 : 0
-  const verified = internship.status === 'MAGANG_TERVERIFIKASI' ? 1 : 0
+  const waitingVerification = stats.waitingVerification
+  const needRevision = stats.needRevision
+  const verified = stats.verified
+
+  const handleExportCSV = () => {
+    if (!internship || !internship.id) {
+      alert('Belum ada data magang yang terkonversi untuk diekspor.')
+      return
+    }
+
+    const headers = ['Kode MK', 'Mata Kuliah', 'NIM', 'Nama Mahasiswa', 'Nilai Angka', 'Nilai Huruf']
+    const rows = []
+
+    const finalScore = internship.partnerAssessment?.scores?.length > 0
+      ? (internship.partnerAssessment.scores.reduce((sum, s) => sum + s.score, 0) / internship.partnerAssessment.scores.length) * 0.7 + 
+        (internship.dplReview?.scores?.length > 0 ? (internship.dplReview.scores.reduce((sum, s) => sum + s.score, 0) / internship.dplReview.scores.length) * 0.3 : 0)
+      : null
+
+    const letterGrade = finalScore
+      ? (finalScore >= 80 ? 'A' : finalScore >= 70 ? 'B' : finalScore >= 60 ? 'C' : finalScore >= 50 ? 'D' : 'E')
+      : '-'
+
+    if (internship.proposal?.activities) {
+      const courseCodes = new Set()
+      internship.proposal.activities.forEach(act => {
+        act.selectedCourseCodes?.forEach(code => courseCodes.add(code))
+      })
+
+      courseCodes.forEach(code => {
+        const master = CONVERSION_MASTER.find(m => m.courseCode === code)
+        rows.push([
+          code,
+          master ? master.courseName : 'Mata Kuliah Konversi',
+          internship.studentId,
+          internship.studentName,
+          finalScore ? finalScore.toFixed(2) : '-',
+          letterGrade
+        ])
+      })
+    }
+
+    if (rows.length === 0) {
+      rows.push(['-', 'Belum ada mata kuliah yang terkonversi', internship.studentId, internship.studentName, '-', '-'])
+    }
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${val}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.setAttribute('download', `Rekap_Konversi_Magang_${internship.studentId}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const detailPath = hasSubmission
     ? `/admin/magang/${internship.id}`
@@ -105,7 +186,7 @@ function AdminDashboard() {
       : 'Belum Diisi'
 
   // Progress values that power the circular stat cards below
-  const totalPercent = hasSubmission ? 100 : 0
+  const totalPercent = stats.totalMagang ? 100 : 0
   const waitingPercent = waitingVerification > 0 ? 100 : 0
   const revisionPercent = needRevision > 0 ? 100 : 0
   const verifiedPercent = verified > 0 ? 100 : 0
@@ -176,23 +257,7 @@ function AdminDashboard() {
             </Link>
           </nav>
 
-          <div className="rounded-2xl bg-slate-50 p-5 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E9D5FF]">
-              <GraduationCapIcon className="h-6 w-6 text-[#7C3AED]" />
-            </div>
-            <p className="mt-3 text-[13px] font-semibold text-slate-900">
-              Butuh bantuan?
-            </p>
-            <p className="mt-1 text-[11px] leading-4 text-slate-400">
-              Hubungi admin sistem untuk kendala teknis aplikasi.
-            </p>
-            <a
-              href="#bantuan"
-              className="mt-4 inline-flex w-full items-center justify-center gap-1 rounded-xl bg-[#7C3AED] py-2.5 text-[12px] font-medium text-white transition hover:bg-[#6D28D9]"
-            >
-              Hubungi Admin →
-            </a>
-          </div>
+          
         </aside>
 
         {/* MAIN CONTENT — soft gray */}
@@ -255,12 +320,21 @@ function AdminDashboard() {
               </p>
             </div>
 
-            <a
-              href="#pengajuan"
-              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 sm:self-start"
-            >
-              Lihat Semua Pengajuan
-            </a>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleExportCSV}
+                className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#F97316] hover:bg-[#EA580C] px-5 py-3 text-sm font-semibold text-white transition cursor-pointer shadow-sm"
+              >
+                Ekspor Rekapitulasi CSV
+              </button>
+
+              <a
+                href="#pengajuan"
+                className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+              >
+                Lihat Semua Pengajuan
+              </a>
+            </div>
           </div>
 
           {/* STAT CARDS — colorful, circular progress */}
@@ -289,8 +363,8 @@ function AdminDashboard() {
               value={needRevision > 0 ? '1 Pengajuan' : 'Kosong'}
               helper="Menunggu mahasiswa"
               percent={revisionPercent}
-              from="#C084FC"
-              to="#9333EA"
+              from="#FF9640"
+              to="#F97316"
             />
             <GradientStatCard
               icon={GraduationCapIcon}

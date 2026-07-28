@@ -5,6 +5,7 @@
 create or replace function public.current_user_role()
 returns user_role
 language sql
+security definer
 stable
 as
 $$

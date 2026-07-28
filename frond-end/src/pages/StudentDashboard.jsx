@@ -1,9 +1,17 @@
-import { Link } from 'react-router'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router'
 import {
   formatDateRange,
   getStatusLabel,
   loadInternship,
+  saveInternship,
 } from '../data/internshipStore.js'
+import {
+  fetchInternshipFromSupabase,
+  isSupabaseConfigured,
+  getLoggedInUserProfile,
+  logoutFromSupabase,
+} from '../data/supabaseSync.js'
 
 const baseProcessSteps = [
   {
@@ -68,7 +76,56 @@ const NAV_ITEMS = [
 ]
 
 function StudentDashboard() {
-  const internship = loadInternship()
+  const navigate = useNavigate()
+  const [profile, setProfile] = useState({
+    full_name: 'Nadia Putri Ramadhani',
+    nim: '22.11.4321',
+    study_program: 'Informatika',
+    semester: '7',
+    email: 'nadia.demo@mahasiswa.ac.id'
+  })
+
+  const [internship, setInternship] = useState(() => loadInternship())
+
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const userProfile = await getLoggedInUserProfile()
+        if (userProfile) {
+          setProfile(userProfile)
+        }
+
+        const remoteData = await fetchInternshipFromSupabase()
+        if (remoteData) {
+          setInternship(remoteData)
+          saveInternship(remoteData)
+        } else {
+          // Reset local cache to empty state using logged-in profile
+          const empty = {
+            id: '',
+            status: 'DRAFT_PENGAJUAN',
+            studentName: userProfile?.full_name || 'Nadia Putri Ramadhani',
+            studentId: userProfile?.nim || '22.11.4321',
+            studyProgram: userProfile?.study_program || 'Informatika',
+            semester: '7',
+            studentEmail: userProfile?.email || 'nadia.demo@mahasiswa.ac.id',
+            partnerName: '',
+            position: '',
+            startDate: '',
+            endDate: '',
+            partnerSupervisor: '',
+            dplName: '',
+            description: '',
+            revisionNote: '',
+          }
+          setInternship(empty)
+          saveInternship(empty)
+        }
+      }
+    }
+    loadData()
+  }, [])
+
   const hasSubmission = Boolean(internship.id)
   const currentStage = statusStageMap[internship.status] || 1
   const statusLabel = hasSubmission
@@ -93,8 +150,14 @@ function StudentDashboard() {
     return { ...step, state: 'locked', percent: 0 }
   })
 
+  const studentName = (profile && profile.full_name && profile.full_name !== 'Nadia Putri Ramadhani') ? profile.full_name : (internship.studentName || 'Nadia Putri Ramadhani')
+  const studentFirstName = studentName.split(' ')[0]
+  const studentNim = (profile && profile.nim && profile.nim !== '22.11.4321') ? profile.nim : (internship.studentId || '22.11.4321')
+  const studentProdi = (profile && profile.study_program && profile.study_program !== 'Informatika') ? profile.study_program : (internship.studyProgram || 'Informatika')
+  const studentSemester = (profile && profile.semester) ? profile.semester : (internship.semester || '7')
+
   const actionContent = getActionContent(internship, hasSubmission)
-  const initials = getInitials('Nadia Putri Ramadhani')
+  const initials = getInitials(studentName)
 
   const periodLabel =
     internship.startDate && internship.endDate
@@ -162,34 +225,24 @@ function StudentDashboard() {
               Pengaturan
             </a>
 
-            <Link
-              to="/"
-              className="flex items-center gap-3 rounded-full px-2 py-1.5 text-[14px] font-medium text-slate-400 transition hover:text-red-500"
+            <button
+              onClick={async () => {
+                if (isSupabaseConfigured) {
+                  await logoutFromSupabase()
+                }
+                window.localStorage.removeItem('konversi-magang-internship')
+                navigate('/')
+              }}
+              className="flex w-full items-center gap-3 rounded-full px-2 py-1.5 text-[14px] font-medium text-slate-400 transition hover:text-red-500 text-left bg-transparent border-0 cursor-pointer"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100">
                 <ExitIcon className="h-[18px] w-[18px] text-slate-400" />
               </span>
               Log out
-            </Link>
+            </button>
           </nav>
 
-          <div className="rounded-2xl bg-slate-50 p-5 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E9D5FF]">
-              <GraduationCapIcon className="h-6 w-6 text-[#7C3AED]" />
-            </div>
-            <p className="mt-3 text-[13px] font-semibold text-slate-900">
-              Butuh bantuan?
-            </p>
-            <p className="mt-1 text-[11px] leading-4 text-slate-400">
-              Hubungi admin Prodi untuk kendala teknis pengajuan.
-            </p>
-            <a
-              href="#bantuan"
-              className="mt-4 inline-flex w-full items-center justify-center gap-1 rounded-xl bg-[#7C3AED] py-2.5 text-[12px] font-medium text-white transition hover:bg-[#6D28D9]"
-            >
-              Hubungi Admin →
-            </a>
-          </div>
+          
         </aside>
 
         {/* MAIN CONTENT — soft gray */}
@@ -226,10 +279,10 @@ function StudentDashboard() {
                 </div>
                 <div className="hidden text-left sm:block">
                   <p className="text-xs font-semibold leading-none text-slate-900">
-                    Nadia Putri
+                    {studentFirstName}
                   </p>
                   <p className="mt-1 text-[11px] leading-none text-[#7C3AED]">
-                    22.11.4321
+                    {studentNim}
                   </p>
                 </div>
                 <ChevronDownIcon className="h-4 w-4 text-slate-400" />
@@ -242,13 +295,13 @@ function StudentDashboard() {
           <div className="flex flex-col justify-between gap-6 rounded-3xl bg-[#7C3AED] p-8 sm:flex-row sm:items-center">
             <div>
               <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/70">
-                Semester 7 · Informatika
+                Semester {studentSemester} · {studentProdi}
               </span>
               <h2 className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
-                Selamat datang, Nadia! <span className="align-middle">👋</span>
+                Selamat datang, {studentFirstName}! <span className="align-middle">👋</span>
               </h2>
               <p className="mt-2 max-w-lg text-sm leading-6 text-white/60">
-                Mahasiswa · Semester 7 Informatika
+                Mahasiswa · Semester {studentSemester} {studentProdi}
               </p>
             </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router'
 import { getCourseByCode } from '../data/conversionMaster.js'
 import {
@@ -8,6 +8,12 @@ import {
   loadInternship,
   saveInternship,
 } from '../data/internshipStore.js'
+import {
+  fetchInternshipFromSupabase,
+  saveInternshipToSupabase,
+  isSupabaseConfigured,
+  sendReviewEmail,
+} from '../data/supabaseSync.js'
 
 function getClaimedCourseCodes(internship) {
   const courseCodes = internship.claim.activities.flatMap(
@@ -61,6 +67,23 @@ function PartnerAssessment() {
   const [generalComment, setGeneralComment] = useState(
     internship.partnerAssessment.generalComment || '',
   )
+
+  useEffect(() => {
+    async function loadData() {
+      if (isSupabaseConfigured) {
+        const remoteData = await fetchInternshipFromSupabase()
+        if (remoteData) {
+          setInternship(remoteData)
+          saveInternship(remoteData)
+          setReviewerName(remoteData.partnerAssessment?.reviewerName || remoteData.partnerSupervisor || '')
+          setReviewerPosition(remoteData.partnerAssessment?.reviewerPosition || 'Pembimbing Lapangan')
+          setScores(createInitialScores(remoteData, getClaimedCourseCodes(remoteData)))
+          setGeneralComment(remoteData.partnerAssessment?.generalComment || '')
+        }
+      }
+    }
+    loadData()
+  }, [])
 
   const tokenValid = token === MITRA_DEMO_TOKEN
   const assessmentSubmitted = Boolean(
@@ -159,8 +182,24 @@ function PartnerAssessment() {
       return
     }
 
+    if (isSupabaseConfigured) {
+      saveInternshipToSupabase(updatedData).catch(err => console.error("Supabase sync failed:", err))
+      // Trigger DPL review email automatically since Mitra has finished!
+      sendReviewEmail({
+        type: 'dpl_claim_review',
+        recipientEmail: 'dpl.ade@amikom.ac.id',
+        recipientName: updatedData.dplName || 'Ade Putranto, M.Kom.',
+        studentName: updatedData.studentName || 'Nadia Putri Ramadhani',
+        reviewUrl: `${window.location.origin}/dpl/DPL_DEMO_TOKEN`
+      }).then(res => {
+        if (res && res.previewMode) {
+          console.log(`%c[EMAIL SIMULATOR] Link Review Klaim Akhir DPL: ${window.location.origin}/dpl/DPL_DEMO_TOKEN`, "color: #7C3AED; font-weight: bold; font-size: 14px;");
+        }
+      })
+    }
+
     setInternship(updatedData)
-    setMessage('Penilaian Mitra berhasil dikirim.')
+    setMessage('Penilaian Mitra berhasil dikirim dan DPL telah dinotifikasi.')
   }
 
   if (!tokenValid) {
@@ -192,16 +231,19 @@ function PartnerAssessment() {
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/20">
               <FileIcon className="h-5 w-5" />
             </span>
 
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED]">
-                Penilaian Mitra &middot; Tanpa Login
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#F97316]">
+                  Penilaian Mitra &middot; Tanpa Login
+                </p>
+                <span className="h-1.5 w-1.5 rounded-full bg-[#F97316] animate-pulse" />
+              </div>
 
-              <h1 className="mt-0.5 text-xl font-semibold leading-tight text-slate-900 sm:text-2xl">
+              <h1 className="mt-0.5 text-xl font-bold leading-tight text-slate-900 sm:text-2xl">
                 Penilaian Kinerja Mahasiswa
               </h1>
 
@@ -248,14 +290,21 @@ function PartnerAssessment() {
         )}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
-          <div className="border-b border-slate-100 pb-6">
-            <h2 className="text-lg font-bold text-slate-900">
-              Informasi Mahasiswa dan Magang
-            </h2>
+          <div className="border-b border-slate-100 pb-6 flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F3E8FF] text-[#7C3AED] border border-[#E9D5FF]">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Informasi Mahasiswa dan Magang
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Pastikan identitas berikut sesuai sebelum memberikan nilai.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Pastikan identitas berikut sesuai sebelum memberikan nilai.
+              </p>
+            </div>
           </div>
 
           <dl className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -289,14 +338,21 @@ function PartnerAssessment() {
           onSubmit={handleSubmit}
           className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8"
         >
-          <div className="border-b border-slate-100 pb-6">
-            <h2 className="text-lg font-bold text-slate-900">
-              Identitas Penilai
-            </h2>
+          <div className="border-b border-slate-100 pb-6 flex items-center gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-[#F97316] border border-orange-200">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Identitas Penilai
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Isi identitas pembimbing yang memberikan penilaian.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Isi identitas pembimbing yang memberikan penilaian.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
@@ -401,14 +457,7 @@ function PartnerAssessment() {
           )}
         </form>
 
-        <div className="mt-6 text-center">
-          <Link
-            to="/"
-            className="text-sm font-semibold text-[#7C3AED] hover:text-[#6D28D9]"
-          >
-            Kembali ke Halaman Demo
-          </Link>
-        </div>
+
       </div>
     </main>
   )
@@ -597,26 +646,28 @@ function InvalidTokenPage() {
 
 function MessagePage({ title, description }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl font-bold text-red-600">
-          !
+    <main className="relative flex min-h-screen items-center justify-center bg-slate-50 p-6 overflow-hidden">
+      {/* Decorative blurred background blobs */}
+      <span className="pointer-events-none absolute -left-12 -top-12 h-64 w-64 rounded-full bg-[#7C3AED]/10 blur-3xl" />
+      <span className="pointer-events-none absolute -right-12 -bottom-12 h-64 w-64 rounded-full bg-[#F97316]/10 blur-3xl" />
+
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/80 p-8 text-center shadow-xl shadow-slate-100 backdrop-blur-md">
+        {/* Warning Icon wrapper */}
+        <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 border border-red-200 text-red-500 shadow-sm">
+          <svg className="h-7 w-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
         </div>
 
-        <h1 className="mt-5 text-xl font-bold text-slate-900">
+        <h1 className="mt-6 text-xl font-bold text-slate-800 tracking-tight leading-tight">
           {title}
         </h1>
 
-        <p className="mt-2 text-sm leading-6 text-slate-500">
+        <p className="mt-3 text-sm leading-6 text-slate-500 font-medium">
           {description}
         </p>
 
-        <Link
-          to="/"
-          className="mt-6 inline-flex rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-        >
-          Kembali ke Halaman Demo
-        </Link>
+
       </div>
     </main>
   )
