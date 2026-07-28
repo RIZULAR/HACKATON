@@ -730,15 +730,16 @@ function StudentInternshipDetail() {
     }
 
     // Trigger DPL Review Email
+    const dplToken = form.bimaId || form.studentId || form.id || 'DPL_DEMO_TOKEN'
     sendReviewEmail({
       type: 'dpl_proposal_review',
       recipientEmail: 'dpl.ade@amikom.ac.id',
       recipientName: form.dplName || 'Ade Putranto, M.Kom.',
       studentName: form.studentName || 'Nadia Putri Ramadhani',
-      reviewUrl: `${window.location.origin}/dpl/DPL_DEMO_TOKEN`
+      reviewUrl: `${window.location.origin}/dpl/${dplToken}`
     }).then(res => {
       if (res && res.previewMode) {
-        console.log(`%c[EMAIL SIMULATOR] Link Review Usulan DPL: ${window.location.origin}/dpl/DPL_DEMO_TOKEN`, "color: #7C3AED; font-weight: bold; font-size: 14px;");
+        console.log(`%c[EMAIL SIMULATOR] Link Review Usulan DPL: ${window.location.origin}/dpl/${dplToken}`, "color: #7C3AED; font-weight: bold; font-size: 14px;");
       }
     })
 
@@ -1063,15 +1064,16 @@ function StudentInternshipDetail() {
     }
 
     // Trigger Partner Assessment Email
+    const token = form.bimaId || form.studentId || form.id || 'MITRA_DEMO_TOKEN'
     sendReviewEmail({
       type: 'mitra_assessment',
       recipientEmail: 'mitra@demo.com',
       recipientName: form.partnerSupervisor || 'Supervisor Mitra',
       studentName: form.studentName || 'Nadia Putri Ramadhani',
-      reviewUrl: `${window.location.origin}/mitra/MITRA_DEMO_TOKEN`
+      reviewUrl: `${window.location.origin}/mitra/${token}`
     }).then(res => {
       if (res && res.previewMode) {
-        console.log(`%c[EMAIL SIMULATOR] Link Penilaian Supervisor Mitra: ${window.location.origin}/mitra/MITRA_DEMO_TOKEN`, "color: #F97316; font-weight: bold; font-size: 14px;");
+        console.log(`%c[EMAIL SIMULATOR] Link Penilaian Supervisor Mitra: ${window.location.origin}/mitra/${token}`, "color: #F97316; font-weight: bold; font-size: 14px;");
       }
     })
 

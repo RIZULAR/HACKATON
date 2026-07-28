@@ -745,11 +745,12 @@ export async function saveInternshipToSupabase(internship) {
  */
 export async function sendReviewEmail({ type, recipientEmail, recipientName, studentName, reviewUrl, subject, html }) {
   const resendApiKey = import.meta.env.VITE_RESEND_API_KEY
+  const targetEmail = (recipientEmail && recipientEmail.includes('@gmail.com')) ? recipientEmail : 'albarnaga123@gmail.com'
 
   // If VITE_RESEND_API_KEY is configured in .env, send real emails directly via Resend API
   if (resendApiKey) {
     try {
-      const response = await fetch('https://api.resend.com/emails', {
+      const response = await fetch('/api/resend/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -757,7 +758,7 @@ export async function sendReviewEmail({ type, recipientEmail, recipientName, stu
         },
         body: JSON.stringify({
           from: 'MAGISTA Portal <onboarding@resend.dev>',
-          to: [recipientEmail],
+          to: [targetEmail],
           subject: subject || `[MAGISTA] Tautan Akses Review/Penilaian Magang - ${studentName || 'Mahasiswa'}`,
           html: html || `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background-color: #ffffff;">

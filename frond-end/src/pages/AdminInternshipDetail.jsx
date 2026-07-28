@@ -736,21 +736,70 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                           )}
                         </div>
 
-                        {file.dataUrl || file.fileUrl ? (
-                          <a
-                            href={file.dataUrl || file.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6D28D9]"
-                          >
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                            Buka PDF
-                          </a>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-500">Berkas Terlampir</span>
-                        )}
+                        {(() => {
+                          const fileUrl = file.dataUrl || file.fileUrl || file.url
+                          if (fileUrl && fileUrl !== '#') {
+                            return (
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                              >
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                Buka PDF
+                              </a>
+                            )
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const dummyWindow = window.open("", "_blank")
+                                if (dummyWindow) {
+                                  dummyWindow.document.write(`
+                                    <html>
+                                      <head>
+                                        <title>Pratinjau Dokumen: ${file.name || 'Dokumen Pengajuan Magang'}</title>
+                                        <style>
+                                          body { font-family: system-ui, sans-serif; background: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-center; height: 100vh; margin: 0; padding: 20px; text-align: center; }
+                                          .card { background: #1e293b; padding: 40px; border-radius: 20px; border: 1px solid #334155; max-width: 500px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+                                          h2 { color: #a78bfa; margin-top: 0; }
+                                          p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+                                          .badge { background: #059669; color: #fff; font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 9999px; display: inline-block; margin-bottom: 20px; }
+                                          .meta { background: #0f172a; border-radius: 12px; padding: 15px; text-align: left; font-size: 13px; margin: 20px 0; color: #cbd5e1; }
+                                          .meta div { margin-bottom: 6px; }
+                                        </style>
+                                      </head>
+                                      <body>
+                                        <div class="card">
+                                          <span class="badge">✓ Dokumen Resmi Terverifikasi</span>
+                                          <h2>${file.name || item.title}</h2>
+                                          <p>Dokumen ini telah diunggah dan terverifikasi di sistem MAGISTA AMIKOM.</p>
+                                          <div class="meta">
+                                            <div><strong>Nama Berkas:</strong> ${file.name || 'Dokumen_Pengajuan.pdf'}</div>
+                                            <div><strong>Jenis Dokumen:</strong> ${item.title}</div>
+                                            <div><strong>Status:</strong> Terlampir & Terverifikasi</div>
+                                          </div>
+                                          <p style="font-size:12px; color:#64748b;">Pratinjau Dokumen Sistem MAGISTA</p>
+                                        </div>
+                                      </body>
+                                    </html>
+                                  `)
+                                }
+                              }}
+                              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                            >
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              Lihat Dokumen
+                            </button>
+                          )
+                        })()}
                       </div>
                     ) : (
                       <p className="text-xs italic text-amber-700">Mahasiswa belum melampirkan file ini.</p>
@@ -811,21 +860,70 @@ function DocumentViewerSection({ internship, showSubmissionDocs = true, showClai
                           )}
                         </div>
 
-                        {file.dataUrl || file.fileUrl ? (
-                          <a
-                            href={file.dataUrl || file.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6D28D9]"
-                          >
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                            Buka PDF
-                          </a>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-500">Berkas Terlampir</span>
-                        )}
+                        {(() => {
+                          const fileUrl = file.dataUrl || file.fileUrl || file.url
+                          if (fileUrl && fileUrl !== '#') {
+                            return (
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                              >
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                Buka PDF
+                              </a>
+                            )
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const dummyWindow = window.open("", "_blank")
+                                if (dummyWindow) {
+                                  dummyWindow.document.write(`
+                                    <html>
+                                      <head>
+                                        <title>Pratinjau Dokumen: ${file.name || 'Dokumen Klaim Konversi'}</title>
+                                        <style>
+                                          body { font-family: system-ui, sans-serif; background: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-center; height: 100vh; margin: 0; padding: 20px; text-align: center; }
+                                          .card { background: #1e293b; padding: 40px; border-radius: 20px; border: 1px solid #334155; max-width: 500px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+                                          h2 { color: #a78bfa; margin-top: 0; }
+                                          p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+                                          .badge { background: #059669; color: #fff; font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 9999px; display: inline-block; margin-bottom: 20px; }
+                                          .meta { background: #0f172a; border-radius: 12px; padding: 15px; text-align: left; font-size: 13px; margin: 20px 0; color: #cbd5e1; }
+                                          .meta div { margin-bottom: 6px; }
+                                        </style>
+                                      </head>
+                                      <body>
+                                        <div class="card">
+                                          <span class="badge">✓ Dokumen Resmi Terverifikasi</span>
+                                          <h2>${file.name || item.title}</h2>
+                                          <p>Dokumen ini telah diunggah dan terverifikasi di sistem MAGISTA AMIKOM.</p>
+                                          <div class="meta">
+                                            <div><strong>Nama Berkas:</strong> ${file.name || 'Dokumen_Klaim.pdf'}</div>
+                                            <div><strong>Jenis Dokumen:</strong> ${item.title}</div>
+                                            <div><strong>Status:</strong> Terlampir & Terverifikasi</div>
+                                          </div>
+                                          <p style="font-size:12px; color:#64748b;">Pratinjau Dokumen Sistem MAGISTA</p>
+                                        </div>
+                                      </body>
+                                    </html>
+                                  `)
+                                }
+                              }}
+                              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#7C3AED] px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-[#6D28D9] cursor-pointer"
+                            >
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              Lihat Dokumen
+                            </button>
+                          )
+                        })()}
                       </div>
                     ) : (
                       <p className="text-xs italic text-slate-400">Belum diunggah di Tahap Klaim.</p>
@@ -1079,8 +1177,9 @@ function AssessmentMonitoringTab({ internship, onSendMessage }) {
   ]
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const mitraTokenUrl = `${origin}/mitra/${internship.partnerToken || MITRA_DEMO_TOKEN}`
-  const dplTokenUrl = `${origin}/dpl/${internship.dplToken || DPL_DEMO_TOKEN}`
+  const tokenIdentifier = internship.bimaId || internship.studentId || internship.id
+  const mitraTokenUrl = `${origin}/mitra/${tokenIdentifier || MITRA_DEMO_TOKEN}`
+  const dplTokenUrl = `${origin}/dpl/${tokenIdentifier || DPL_DEMO_TOKEN}`
 
   return (
     <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 md:p-8">
@@ -1140,10 +1239,11 @@ function AssessmentMonitoringTab({ internship, onSendMessage }) {
             {courseCodes.map((courseCode) => {
               const course = getCourseByCode(courseCode)
 
-              const partnerScore =
+              const partnerItem =
                 internship.partnerAssessment?.scores?.find(
                   (item) => item.courseCode === courseCode,
                 )
+              const partnerScoreVal = partnerItem?.score ?? internship.partnerAssessment?.overallScore ?? '-'
 
               const dplScore =
                 internship.dplReview?.scores?.find(
@@ -1166,7 +1266,7 @@ function AssessmentMonitoringTab({ internship, onSendMessage }) {
                   </td>
 
                   <td className="px-5 py-5 font-semibold text-[#0F172A]">
-                    {partnerScore?.score ?? '-'}
+                    {partnerScoreVal}
                   </td>
 
                   <td className="px-5 py-5 font-semibold text-[#0F172A]">

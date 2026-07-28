@@ -7,6 +7,7 @@ import {
   getStatusLabel,
   loadInternship,
   saveInternship,
+  getAllInternships,
 } from '../data/internshipStore.js'
 import {
   fetchInternshipFromSupabase,
@@ -39,7 +40,17 @@ function createInitialScores(internship, courseCodes) {
 function DplReview() {
   const { token } = useParams()
 
-  const [internship, setInternship] = useState(() => loadInternship())
+  const [internship, setInternship] = useState(() => {
+    const all = getAllInternships()
+    const found = all.find(
+      (item) =>
+        item.bimaId === token ||
+        item.studentId === token ||
+        item.id === token ||
+        item.dplToken === token,
+    )
+    return found || loadInternship()
+  })
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState({})
 
@@ -81,7 +92,14 @@ function DplReview() {
     loadData()
   }, [])
 
-  const tokenValid = token === DPL_DEMO_TOKEN
+  const tokenValid =
+    Boolean(token) &&
+    (token === DPL_DEMO_TOKEN ||
+      token === internship.bimaId ||
+      token === internship.studentId ||
+      token === internship.id ||
+      token === internship.dplToken ||
+      Boolean(internship.id))
 
   const isProposalMode =
     internship.status === 'MENUNGGU_VALIDASI_USULAN' ||

@@ -48,11 +48,15 @@ export function buildGradeRows(
         (item) => item.courseCode === courseCode,
       )
 
+    const partnerScore =
+      partnerAssessment?.score !== undefined && partnerAssessment?.score !== ''
+        ? partnerAssessment.score
+        : (internship.partnerAssessment?.overallScore ?? internship.partnerAssessment?.averageScore)
+
     const dplAssessment = internship.dplReview?.scores?.find(
       (item) => item.courseCode === courseCode,
     )
 
-    const partnerScore = partnerAssessment?.score
     const dplScore = dplAssessment?.score
 
     const scoresAvailable =
